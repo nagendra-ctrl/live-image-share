@@ -10,7 +10,7 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "predeploy": "npm run build",
-    "deploy": "gh-pages -d dist -r https://github.com/nagendra-ctrl/live-image-share.git"
+    "deploy": "gh-pages -d dist"
   },
   "dependencies": {
     "@types/qrcode": "^1.5.6",
