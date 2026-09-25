@@ -1,0 +1,42 @@
+# System & OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Node / Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.env.local
+frontend/.env.*.local
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+
+# Java / Maven Backend
+backend/target/
+backend/*.jar
+backend/*.war
+backend/.mvn/wrapper/maven-wrapper.jar
+*.class
+
+# IDE & Editor files
+.idea/
+*.iml
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Storage & Database data
+storage/uploads/*
+storage/thumbnails/*
+!storage/uploads/.gitkeep
+!storage/thumbnails/.gitkeep
+backend/data/
+*.db
+
+# Logs
+*.log
+logs/
