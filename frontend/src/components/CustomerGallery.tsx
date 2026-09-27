@@ -205,12 +205,14 @@ export const CustomerGallery: React.FC<Props> = ({ token, onBack, onOpenScanner 
       <style>{`
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         @keyframes slideUp { from { transform: translateY(16px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-        .gallery-card { transition: transform 0.25s ease, box-shadow 0.25s ease; }
-        .gallery-card:hover { transform: translateY(-4px); box-shadow: 0 12px 30px rgba(0,0,0,0.6); }
-        .gallery-card:hover .card-overlay { opacity: 1; }
-        .card-overlay { opacity: 0; transition: opacity 0.2s ease; }
+        .gallery-grid { perspective: 1000px; }
+        .gallery-card { transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.4s ease; transform-style: preserve-3d; }
+        .gallery-card:hover { transform: translateY(-10px) rotateX(5deg) rotateY(-5deg) scale(1.05); box-shadow: -10px 20px 40px rgba(0,0,0,0.7), inset 0 0 15px rgba(226,184,85,0.2); }
+        .gallery-card:hover .card-overlay { opacity: 1; transform: translateZ(30px); }
+        .card-overlay { opacity: 0; transition: opacity 0.3s ease, transform 0.3s ease; transform: translateZ(0); }
         @media (max-width: 640px) {
-          .card-overlay { opacity: 1 !important; background: linear-gradient(to top, rgba(0,0,0,0.85) 0%, transparent 60%) !important; }
+          .card-overlay { opacity: 1 !important; background: linear-gradient(to top, rgba(0,0,0,0.85) 0%, transparent 60%) !important; transform: none !important; }
+          .gallery-card:hover { transform: translateY(-5px); }
         }
       `}</style>
 
@@ -557,7 +559,7 @@ export const CustomerGallery: React.FC<Props> = ({ token, onBack, onOpenScanner 
             )}
           </div>
         ) : (
-          <div style={{
+          <div className="gallery-grid" style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
             gap: '16px',
