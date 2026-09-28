@@ -16,7 +16,8 @@ import {
   Search,
   Edit3,
   CheckSquare,
-  Square
+  Square,
+  Sparkles
 } from 'lucide-react';
 import { fetchEvents, fetchEventByCode } from '../services/api';
 import type { StoredPhoto } from '../utils/photoStorage';
@@ -42,49 +43,50 @@ export const CustomerVerificationView: React.FC<CustomerVerificationProps> = ({
   onOpenScanner
 }) => {
   const [galleryCode, setGalleryCode] = useState<string>(initialAccessCode);
-  const [eventDetails, setEventDetails] = useState<PhotoVaultEvent | null>(null);
-
-  useEffect(() => {
-    if (initialAccessCode) {
-      setGalleryCode(initialAccessCode);
-    }
-  }, [initialAccessCode]);
-
   const [inGallery, setInGallery] = useState<boolean>(false);
   const [activeAlbum, setActiveAlbum] = useState<string>('All Photos');
-  const [isMobileFrame, setIsMobileFrame] = useState<boolean>(true);
   const [showQrModal, setShowQrModal] = useState<boolean>(false);
   const [showPasteModal, setShowPasteModal] = useState<boolean>(false);
-  const [showCameraModal, setShowCameraModal] = useState<boolean>(false);
   const [pastedLink, setPastedLink] = useState<string>('');
   const [activePhoto, setActivePhoto] = useState<StoredPhoto | null>(null);
   const [notification, setNotification] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // Search & Enable Editing States
+  const [isMobileFrame, setIsMobileFrame] = useState<boolean>(true);
+  const [showCameraModal, setShowCameraModal] = useState<boolean>(false);
   const [showSearch, setShowSearch] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [isEditingEnabled, setIsEditingEnabled] = useState<boolean>(false);
+  const [selectedPhotoIds, setSelectedPhotoIds] = useState<string[]>([]);
   const [editingPhoto, setEditingPhoto] = useState<StoredPhoto | null>(null);
   const [editTitle, setEditTitle] = useState<string>('');
-  const [editAlbum, setEditAlbum] = useState<string>('Wedding');
+  const [editAlbum, setEditAlbum] = useState<string>('');
+  const [eventDetails, setEventDetails] = useState<PhotoVaultEvent | null>(null);
 
-  // Home page event search states
+  // Home search state
   const [homeSearchQuery, setHomeSearchQuery] = useState<string>('');
   const [homeSearchResults, setHomeSearchResults] = useState<PhotoVaultEvent[]>([]);
   const [homeSearchLoading, setHomeSearchLoading] = useState<boolean>(false);
   const [homeSearchFocused, setHomeSearchFocused] = useState<boolean>(false);
   const homeSearchRef = useRef<HTMLDivElement>(null);
-  const [selectedPhotoIds, setSelectedPhotoIds] = useState<string[]>([]);
 
-  // Event-isolated photo storage state
-  const [photos, setPhotos] = useState<StoredPhoto[]>([]);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Selection toggle for batch editing/deleting
-  const toggleSelectPhoto = (id: string, e: React.MouseEvent) => {
+  // Load photos for active event
+  const [photos, setPhotos] = useState<StoredPhoto[]>(() => {
+    return getEventPhotos(initialAccessCode);
+  });
+
+  const triggerNotify = (msg: string) => {
+    setNotification(msg);
+    setTimeout(() => {
+      setNotification(null);
+    }, 2800);
+  };
+
+  // Toggle photo selection for batch deletion
+  const toggleSelectPhoto = (photoId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     setSelectedPhotoIds(prev => 
-      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
+      prev.includes(photoId) ? prev.filter(id => id !== photoId) : [...prev, photoId]
     );
   };
 
@@ -167,44 +169,51 @@ export const CustomerVerificationView: React.FC<CustomerVerificationProps> = ({
   }, []);
 
   useEffect(() => {
-    const timer = setTimeout(() => performHomeSearch(homeSearchQuery), 300);
+    const timer = setTimeout(() => {
+      if (homeSearchQuery.trim()) {
+        performHomeSearch(homeSearchQuery);
+      } else {
+        setHomeSearchResults([]);
+      }
+    }, 250);
     return () => clearTimeout(timer);
   }, [homeSearchQuery, performHomeSearch]);
 
   // Close search dropdown on outside click
   useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
+    const handleOutsideClick = (e: MouseEvent) => {
       if (homeSearchRef.current && !homeSearchRef.current.contains(e.target as Node)) {
         setHomeSearchFocused(false);
       }
     };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
   }, []);
 
-  const triggerNotify = (msg: string) => {
-    setNotification(msg);
-    setTimeout(() => setNotification(null), 3000);
-  };
-
-  // Called when a photo is captured with the real camera
-  const handleCameraPhotoCaptured = (imageDataUrl: string, album: string, title: string) => {
+  // Handle Photo Captured by Real Device Camera
+  const handleCameraPhotoCaptured = (imageDataUrl: string) => {
     const now = new Date();
-    const formattedDateTime = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) + ' • ' + now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const formattedDateTime = now.toLocaleDateString('en-GB', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric'
+    }) + ' ' + now.toLocaleTimeString('en-GB', {
+      hour: '2-digit',
+      minute: '2-digit'
+    });
 
     const saved = saveEventPhoto(galleryCode, {
       src: imageDataUrl,
-      title: title || `Wedding Photo #${photos.length + 1}`,
-      album: album || 'Wedding',
+      title: `Live Shot ${photos.length + 1}`,
+      album: activeAlbum === 'All Photos' ? 'Wedding' : activeAlbum,
       capturedAt: formattedDateTime,
       isFavorite: false,
     });
-
-    setPhotos(prev => [saved, ...prev]);
-    triggerNotify('📷 Photo captured & saved to event gallery!');
+    setPhotos(prev => [saved, ...prev.filter(p => p.id !== saved.id)]);
+    triggerNotify('📷 Photo captured and saved to event gallery!');
   };
 
-  // File picker fallback
+  // Handle File Upload
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
@@ -214,7 +223,14 @@ export const CustomerVerificationView: React.FC<CustomerVerificationProps> = ({
       reader.onload = () => {
         if (typeof reader.result === 'string') {
           const now = new Date();
-          const formattedDateTime = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) + ' • ' + now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          const formattedDateTime = now.toLocaleDateString('en-GB', {
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric'
+          }) + ' ' + now.toLocaleTimeString('en-GB', {
+            hour: '2-digit',
+            minute: '2-digit'
+          });
 
           const saved = saveEventPhoto(galleryCode, {
             src: reader.result,
@@ -251,13 +267,13 @@ export const CustomerVerificationView: React.FC<CustomerVerificationProps> = ({
     if (activePhoto && activePhoto.id === photoId) {
       setActivePhoto(prev => prev ? { ...prev, isFavorite: isNowFav } : null);
     }
-    triggerNotify(isNowFav ? 'Added to favorites ♥' : 'Removed from favorites');
+    triggerNotify(isNowFav ? 'Added to favorites ❤️' : 'Removed from favorites');
   };
 
   const handleDownloadPhoto = (photo: StoredPhoto) => {
     const a = document.createElement('a');
     a.href = photo.src;
-    const cleanTitle = (photo.title || 'wedding_photo').replace(/[^a-zA-Z0-9_-]/g, '_');
+    const cleanTitle = (photo.title || 'photo').replace(/[^a-zA-Z0-9_-]/g, '_');
     a.download = `${cleanTitle}_${galleryCode}.jpg`;
     document.body.appendChild(a);
     a.click();
@@ -287,30 +303,35 @@ export const CustomerVerificationView: React.FC<CustomerVerificationProps> = ({
   });
 
   const favoriteCount = photos.filter(p => p.isFavorite).length;
+  const baseUrl = import.meta.env.BASE_URL || '/';
+  const heroLensImage = `${baseUrl}camera_lens_hero.jpg`;
 
   return (
     <div style={{
       minHeight: '100vh',
-      background: '#121316',
+      background: 'radial-gradient(ellipse 80% 50% at 50% 0%, rgba(245, 190, 79, 0.08) 0%, #040508 70%)',
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'center',
       padding: isMobileFrame ? '24px 16px 48px 16px' : '0',
-      fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif",
+      fontFamily: 'Inter, -apple-system, sans-serif',
+      color: '#f8fafc',
     }}>
       {/* Viewport & Device Controls Bar */}
       <div style={{
         width: '100%',
-        maxWidth: isMobileFrame ? '420px' : '100%',
+        maxWidth: isMobileFrame ? '440px' : '100%',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        padding: '12px 16px',
-        marginBottom: isMobileFrame ? '12px' : '0',
-        background: 'rgba(255, 255, 255, 0.05)',
-        backdropFilter: 'blur(10px)',
+        padding: '12px 18px',
+        marginBottom: isMobileFrame ? '16px' : '0',
+        background: 'rgba(14, 18, 28, 0.85)',
+        backdropFilter: 'blur(16px)',
+        WebkitBackdropFilter: 'blur(16px)',
         borderRadius: isMobileFrame ? '16px' : '0',
-        border: '1px solid rgba(255, 255, 255, 0.08)',
+        border: '1px solid rgba(245, 190, 79, 0.25)',
+        boxShadow: '0 8px 30px rgba(0,0,0,0.6)',
         color: '#f8fafc',
         fontSize: '0.825rem',
       }}>
@@ -319,18 +340,18 @@ export const CustomerVerificationView: React.FC<CustomerVerificationProps> = ({
             <button 
               onClick={onBackToOverview} 
               className="btn btn-secondary" 
-              style={{ padding: '4px 10px', fontSize: '0.75rem', borderRadius: '6px' }}
+              style={{ padding: '6px 12px', fontSize: '0.75rem', borderRadius: '8px', color: 'var(--accent-gold)', borderColor: 'rgba(245,190,79,0.3)' }}
             >
-              ← Photographer Studio
+              ← Studio Mode
             </button>
           )}
           {inGallery && (
             <button 
               onClick={() => setInGallery(false)} 
               className="btn btn-secondary" 
-              style={{ padding: '4px 10px', fontSize: '0.75rem', borderRadius: '6px' }}
+              style={{ padding: '6px 12px', fontSize: '0.75rem', borderRadius: '8px' }}
             >
-              ← Verification Screen
+              ← Verification
             </button>
           )}
         </div>
@@ -340,13 +361,14 @@ export const CustomerVerificationView: React.FC<CustomerVerificationProps> = ({
             onClick={() => setIsMobileFrame(!isMobileFrame)}
             className="btn btn-secondary"
             style={{ 
-              padding: '6px 12px', 
+              padding: '6px 14px', 
               fontSize: '0.75rem', 
               borderRadius: '8px', 
               background: 'rgba(255,255,255,0.08)',
-              border: '1px solid rgba(255,255,255,0.15)' 
+              border: '1px solid rgba(255,255,255,0.18)',
+              color: '#ffffff',
             }}
-            title="Toggle Smartphone Mockup Frame vs Fullscreen"
+            title="Toggle Smartphone Frame vs Full Width"
           >
             {isMobileFrame ? (
               <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -354,7 +376,7 @@ export const CustomerVerificationView: React.FC<CustomerVerificationProps> = ({
               </span>
             ) : (
               <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <Smartphone size={13} /> Mobile Mockup Frame
+                <Smartphone size={13} /> Mobile Mockup
               </span>
             )}
           </button>
@@ -364,20 +386,20 @@ export const CustomerVerificationView: React.FC<CustomerVerificationProps> = ({
       {/* Main Container / Smartphone Shell */}
       <div style={{
         width: '100%',
-        maxWidth: isMobileFrame ? '420px' : '100%',
-        background: '#fbf9f5', // Warm luxury cream/ivory
+        maxWidth: isMobileFrame ? '440px' : '100%',
+        background: 'linear-gradient(180deg, #090c12 0%, #05070a 100%)',
         borderRadius: isMobileFrame ? '44px' : '0',
-        boxShadow: isMobileFrame ? '0 25px 60px -15px rgba(0, 0, 0, 0.8), 0 0 0 12px #262930' : 'none',
+        boxShadow: isMobileFrame ? '0 30px 80px -15px rgba(0, 0, 0, 0.95), 0 0 0 10px #141720, 0 0 40px rgba(245, 190, 79, 0.15)' : 'none',
         overflow: 'hidden',
         position: 'relative',
         display: 'flex',
         flexDirection: 'column',
         minHeight: isMobileFrame ? '844px' : '100vh',
-        color: '#1c1917',
-        border: isMobileFrame ? '4px solid #1a1b1f' : 'none',
+        color: '#f8fafc',
+        border: isMobileFrame ? '2px solid rgba(245, 190, 79, 0.35)' : 'none',
       }}>
 
-        {/* Status bar speaker notch (if in mobile mockup mode) */}
+        {/* Speaker notch (in mobile mockup mode) */}
         {isMobileFrame && (
           <div style={{
             position: 'absolute',
@@ -392,9 +414,10 @@ export const CustomerVerificationView: React.FC<CustomerVerificationProps> = ({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
+            border: '1px solid rgba(255,255,255,0.1)',
           }}>
-            <div style={{ width: '45px', height: '4px', background: '#222', borderRadius: '2px' }} />
-            <div style={{ width: '10px', height: '10px', background: '#111', borderRadius: '50%', marginLeft: '8px' }} />
+            <div style={{ width: '45px', height: '4px', background: '#333', borderRadius: '2px' }} />
+            <div style={{ width: '8px', height: '8px', background: '#222', borderRadius: '50%', marginLeft: '8px', border: '1px solid rgba(56,189,248,0.4)' }} />
           </div>
         )}
 
@@ -405,22 +428,26 @@ export const CustomerVerificationView: React.FC<CustomerVerificationProps> = ({
             top: isMobileFrame ? '40px' : '16px',
             left: '50%',
             transform: 'translateX(-50%)',
-            background: 'rgba(28, 25, 23, 0.94)',
-            color: '#fdfbf7',
-            padding: '8px 18px',
+            background: 'rgba(18, 24, 38, 0.95)',
+            border: '1px solid rgba(245, 190, 79, 0.5)',
+            color: '#fde089',
+            padding: '8px 20px',
             borderRadius: '999px',
-            fontSize: '0.8rem',
-            fontWeight: 500,
-            boxShadow: '0 8px 20px rgba(0,0,0,0.25)',
+            fontSize: '0.82rem',
+            fontWeight: 700,
+            boxShadow: '0 10px 30px rgba(0,0,0,0.8), 0 0 20px rgba(245, 190, 79, 0.25)',
             zIndex: 100,
             animation: 'fadeIn 0.2s ease',
             whiteSpace: 'nowrap',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
           }}>
-            {notification}
+            <Sparkles size={14} color="#f5be4f" /> {notification}
           </div>
         )}
 
-        {/* SCREEN 1: VERIFICATION SCREEN (EXACT MATCH TO USER SCREENSHOT) */}
+        {/* SCREEN 1: VERIFICATION SCREEN (OBSIDIAN NOIR CAMERA LENS THEME) */}
         {!inGallery ? (
           <div style={{
             display: 'flex',
@@ -435,169 +462,221 @@ export const CustomerVerificationView: React.FC<CustomerVerificationProps> = ({
               alignItems: 'center',
               justifyContent: 'space-between',
               padding: '12px 20px',
-              borderBottom: '1px solid rgba(0,0,0,0.04)',
+              borderBottom: '1px solid rgba(255,255,255,0.06)',
             }}>
-              {/* Back Arrow */}
               <button 
                 onClick={onBackToOverview} 
                 style={{
-                  background: 'none',
-                  border: 'none',
+                  background: 'rgba(255,255,255,0.06)',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  borderRadius: '8px',
                   cursor: 'pointer',
                   padding: '6px',
-                  color: '#292524',
+                  color: '#f8fafc',
                   display: 'flex',
                   alignItems: 'center',
                 }}
                 title="Back"
               >
-                <ChevronLeft size={22} strokeWidth={2.4} />
+                <ChevronLeft size={20} strokeWidth={2.4} />
               </button>
 
               {/* Center Logo & Title */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                {/* Intertwined Gold Rings SVG */}
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <circle cx="9" cy="12" r="6" stroke="#b4935a" strokeWidth="1.6" />
-                  <circle cx="15" cy="12" r="6" stroke="#cbb279" strokeWidth="1.6" strokeDasharray="32" strokeDashoffset="4" />
-                </svg>
+                <div style={{
+                  width: '26px',
+                  height: '26px',
+                  borderRadius: '50%',
+                  background: 'linear-gradient(135deg, #f5be4f 0%, #d49a2a 100%)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#050608',
+                  boxShadow: '0 0 10px rgba(245,190,79,0.4)',
+                }}>
+                  <Camera size={14} strokeWidth={2.4} />
+                </div>
                 <span style={{
-                  fontFamily: "'Playfair Display', Georgia, serif",
-                  fontSize: '1.18rem',
-                  fontWeight: 700,
-                  color: '#1a1816',
+                  fontFamily: 'Outfit, sans-serif',
+                  fontSize: '1.12rem',
+                  fontWeight: 800,
+                  color: '#ffffff',
                   letterSpacing: '-0.02em',
                 }}>
-                  Private Pin Verification
+                  Photo<span style={{ color: 'var(--accent-gold)' }}>Vault</span> Pass
                 </span>
               </div>
 
-              {/* Photographer Avatar Profile */}
+              {/* Viewfinder Badge */}
               <div style={{
-                width: '34px',
-                height: '34px',
-                borderRadius: '50%',
-                overflow: 'hidden',
-                border: '1.5px solid rgba(180, 147, 90, 0.4)',
-                boxShadow: '0 2px 6px rgba(0,0,0,0.08)',
+                fontFamily: 'var(--font-mono)',
+                fontSize: '0.65rem',
+                color: 'var(--accent-gold)',
+                background: 'rgba(245,190,79,0.12)',
+                border: '1px solid rgba(245,190,79,0.3)',
+                padding: '3px 8px',
+                borderRadius: '999px',
+                fontWeight: 700,
               }}>
-                <img 
-                  src="/photographer_avatar.jpg" 
-                  alt="Photographer Elena Vance" 
-                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                />
+                F1.4 PRO
               </div>
             </div>
 
             {/* Scrollable Content Body */}
             <div style={{ padding: '16px 20px', flex: 1, display: 'flex', flexDirection: 'column' }}>
 
-              {/* Hero Photography Card with '♥ PRIVATE KEEPSAKE' Badge */}
+              {/* Hero Camera Lens Card with HUD Viewfinder Overlay */}
               <div style={{
                 position: 'relative',
-                borderRadius: '18px',
+                borderRadius: '20px',
                 overflow: 'hidden',
-                boxShadow: '0 12px 28px -6px rgba(0,0,0,0.12)',
+                boxShadow: '0 16px 40px -10px rgba(0,0,0,0.9), 0 0 30px rgba(245, 190, 79, 0.15)',
                 aspectRatio: '16/10',
-                background: '#e7e3dc',
+                background: '#000000',
+                border: '1px solid rgba(245, 190, 79, 0.35)',
               }}>
                 <img 
-                  src="/wedding_couple_hero.jpg" 
-                  alt="Wedding Couple in Tuscan Courtyard" 
+                  src={heroLensImage} 
+                  alt="Cinematic Camera Lens Aperture" 
                   style={{
                     width: '100%',
                     height: '100%',
                     objectFit: 'cover',
                     display: 'block',
                   }}
+                  onError={(e) => { (e.target as HTMLImageElement).src = '/wedding_couple_hero.jpg'; }}
                 />
 
-                {/* Floating Frosted Keepsake Badge */}
+                {/* Camera HUD Grid Overlay */}
+                <div style={{
+                  position: 'absolute',
+                  inset: 0,
+                  background: 'linear-gradient(to top, rgba(5,7,10,0.95) 0%, rgba(5,7,10,0.3) 50%, rgba(5,7,10,0.4) 100%)',
+                  pointerEvents: 'none',
+                }} />
+
+                {/* Viewfinder Reticle in Center */}
+                <div style={{
+                  position: 'absolute',
+                  top: '50%',
+                  left: '50%',
+                  transform: 'translate(-50%, -50%)',
+                  width: '60px',
+                  height: '60px',
+                  border: '1px solid rgba(245, 190, 79, 0.35)',
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  pointerEvents: 'none',
+                }}>
+                  <div style={{ width: '4px', height: '4px', background: 'var(--accent-gold)', borderRadius: '50%' }} />
+                </div>
+
+                {/* Floating Optics Keepsake Badge */}
                 <div style={{
                   position: 'absolute',
                   bottom: '12px',
                   left: '12px',
-                  background: 'rgba(247, 243, 235, 0.88)',
-                  backdropFilter: 'blur(10px)',
-                  WebkitBackdropFilter: 'blur(10px)',
-                  padding: '6px 12px',
+                  background: 'rgba(10, 14, 22, 0.88)',
+                  backdropFilter: 'blur(12px)',
+                  WebkitBackdropFilter: 'blur(12px)',
+                  padding: '6px 14px',
                   borderRadius: '999px',
                   display: 'flex',
                   alignItems: 'center',
                   gap: '6px',
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-                  border: '1px solid rgba(255,255,255,0.6)',
+                  boxShadow: '0 4px 16px rgba(0,0,0,0.6)',
+                  border: '1px solid rgba(245, 190, 79, 0.4)',
                 }}>
-                  <span style={{ color: '#544330', fontSize: '0.75rem' }}>♥</span>
+                  <Sparkles size={12} color="var(--accent-gold)" />
                   <span style={{
                     fontSize: '0.66rem',
                     fontWeight: 800,
-                    letterSpacing: '0.12em',
+                    letterSpacing: '0.1em',
                     textTransform: 'uppercase',
-                    color: '#443727',
-                    fontFamily: "'Plus Jakarta Sans', sans-serif",
+                    color: '#fde089',
+                    fontFamily: 'var(--font-mono)',
                   }}>
-                    Private Keepsake
+                    Precision Optics • Keepsake
                   </span>
+                </div>
+
+                {/* Camera Specs Tag */}
+                <div style={{
+                  position: 'absolute',
+                  top: '12px',
+                  right: '12px',
+                  background: 'rgba(0,0,0,0.65)',
+                  backdropFilter: 'blur(8px)',
+                  padding: '3px 8px',
+                  borderRadius: '6px',
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: '0.62rem',
+                  color: 'rgba(255,255,255,0.7)',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                }}>
+                  50mm · f/1.4 · ISO 100
                 </div>
               </div>
 
               {/* Welcome Header */}
-              <div style={{ textAlign: 'center', marginTop: '22px', marginBottom: '20px' }}>
+              <div style={{ textAlign: 'center', marginTop: '22px', marginBottom: '18px' }}>
                 <div style={{
                   fontSize: '0.72rem',
-                  fontWeight: 700,
-                  letterSpacing: '0.14em',
+                  fontWeight: 800,
+                  letterSpacing: '0.16em',
                   textTransform: 'uppercase',
-                  color: '#9e7b4f',
+                  color: 'var(--accent-gold)',
                   marginBottom: '8px',
+                  fontFamily: 'var(--font-mono)',
                 }}>
-                  Welcome to WedGallery
+                  Private Gallery Vault
                 </div>
                 <h2 style={{
-                  fontFamily: "'Playfair Display', Georgia, serif",
-                  fontSize: '2.1rem',
-                  fontWeight: 700,
-                  color: '#1a1816',
+                  fontFamily: 'Outfit, sans-serif',
+                  fontSize: '2rem',
+                  fontWeight: 800,
+                  color: '#ffffff',
                   lineHeight: 1.15,
-                  letterSpacing: '-0.02em',
-                  marginBottom: '10px',
+                  letterSpacing: '-0.03em',
+                  marginBottom: '8px',
                 }}>
                   Your memories,<br />
-                  beautifully organized.
+                  <span style={{ color: 'var(--accent-gold)' }}>crystal clear.</span>
                 </h2>
                 <p style={{
-                  color: '#78716c',
-                  fontSize: '0.925rem',
+                  color: '#94a3b8',
+                  fontSize: '0.88rem',
                   lineHeight: 1.45,
                   maxWidth: '320px',
                   margin: '0 auto',
                 }}>
-                  View and preserve your wedding moments in one private gallery.
+                  Enter your private code or scan your QR ticket to unlock high-res moments.
                 </p>
               </div>
 
               {/* Event Search Bar */}
-              <div ref={homeSearchRef} style={{ position: 'relative', marginBottom: '4px' }}>
+              <div ref={homeSearchRef} style={{ position: 'relative', marginBottom: '14px' }}>
                 <div style={{
                   display: 'flex',
                   alignItems: 'center',
                   gap: '10px',
-                  background: homeSearchFocused ? '#ffffff' : '#f5f5f4',
+                  background: homeSearchFocused ? 'rgba(18, 24, 38, 0.95)' : 'rgba(12, 16, 26, 0.8)',
                   borderRadius: '12px',
                   padding: '11px 14px',
-                  border: homeSearchFocused ? '1.5px solid #b4935a' : '1.5px solid #e7e5e4',
-                  boxShadow: homeSearchFocused ? '0 0 0 3px rgba(180,147,90,0.12)' : 'none',
+                  border: homeSearchFocused ? '1.5px solid var(--accent-gold)' : '1px solid rgba(255,255,255,0.1)',
+                  boxShadow: homeSearchFocused ? '0 0 0 3px rgba(245,190,79,0.2)' : 'none',
                   transition: 'all 0.2s',
                 }}>
                   {homeSearchLoading ? (
                     <div style={{
-                      width: '16px', height: '16px', border: '2px solid #e7e5e4',
-                      borderTopColor: '#b4935a', borderRadius: '50%',
+                      width: '16px', height: '16px', border: '2px solid rgba(255,255,255,0.2)',
+                      borderTopColor: 'var(--accent-gold)', borderRadius: '50%',
                       animation: 'spin 0.7s linear infinite', flexShrink: 0,
                     }} />
                   ) : (
-                    <Search size={16} color={homeSearchFocused ? '#b4935a' : '#a8a29e'} style={{ flexShrink: 0 }} />
+                    <Search size={16} color={homeSearchFocused ? '#f5be4f' : '#64748b'} style={{ flexShrink: 0 }} />
                   )}
                   <input
                     id="home-event-search"
@@ -610,17 +689,17 @@ export const CustomerVerificationView: React.FC<CustomerVerificationProps> = ({
                       border: 'none',
                       background: 'transparent',
                       outline: 'none',
-                      fontSize: '0.9rem',
+                      fontSize: '0.88rem',
                       fontWeight: 500,
-                      color: '#292524',
+                      color: '#f8fafc',
                       width: '100%',
-                      fontFamily: "'Plus Jakarta Sans', sans-serif",
+                      fontFamily: 'Inter, sans-serif',
                     }}
                   />
                   {homeSearchQuery && (
                     <button
                       onClick={() => { setHomeSearchQuery(''); setHomeSearchResults([]); }}
-                      style={{ background: 'none', border: 'none', color: '#a8a29e', cursor: 'pointer', padding: '2px', display: 'flex', flexShrink: 0 }}
+                      style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '2px', display: 'flex', flexShrink: 0 }}
                     >
                       <X size={14} />
                     </button>
@@ -634,10 +713,10 @@ export const CustomerVerificationView: React.FC<CustomerVerificationProps> = ({
                     top: 'calc(100% + 6px)',
                     left: 0,
                     right: 0,
-                    background: '#ffffff',
-                    borderRadius: '12px',
-                    border: '1px solid #e7e5e4',
-                    boxShadow: '0 12px 32px -4px rgba(0,0,0,0.14)',
+                    background: '#0d111a',
+                    borderRadius: '14px',
+                    border: '1px solid rgba(245,190,79,0.3)',
+                    boxShadow: '0 16px 40px rgba(0,0,0,0.85)',
                     zIndex: 50,
                     overflow: 'hidden',
                     animation: 'fadeIn 0.15s ease',
@@ -646,14 +725,14 @@ export const CustomerVerificationView: React.FC<CustomerVerificationProps> = ({
                       <div style={{
                         padding: '16px',
                         textAlign: 'center',
-                        color: '#a8a29e',
+                        color: '#64748b',
                         fontSize: '0.82rem',
                         display: 'flex',
                         flexDirection: 'column',
                         alignItems: 'center',
                         gap: '6px',
                       }}>
-                        <Search size={18} color="#d6d3d1" />
+                        <Search size={18} color="#475569" />
                         <span>No events found for &ldquo;{homeSearchQuery}&rdquo;</span>
                       </div>
                     ) : (
@@ -670,31 +749,32 @@ export const CustomerVerificationView: React.FC<CustomerVerificationProps> = ({
                             display: 'flex',
                             alignItems: 'center',
                             gap: '12px',
-                            padding: '11px 14px',
+                            padding: '12px 14px',
                             cursor: 'pointer',
-                            borderBottom: '1px solid #f5f5f4',
+                            borderBottom: '1px solid rgba(255,255,255,0.06)',
                             transition: 'background 0.15s',
                           }}
-                          onMouseOver={e => (e.currentTarget.style.background = '#faf8f4')}
+                          onMouseOver={e => (e.currentTarget.style.background = 'rgba(245,190,79,0.1)')}
                           onMouseOut={e => (e.currentTarget.style.background = 'transparent')}
                         >
                           <div style={{
                             width: '36px', height: '36px', borderRadius: '9px',
-                            background: '#faeedb', display: 'flex', alignItems: 'center',
-                            justifyContent: 'center', color: '#785834', flexShrink: 0,
+                            background: 'rgba(245,190,79,0.15)', display: 'flex', alignItems: 'center',
+                            justifyContent: 'center', color: 'var(--accent-gold)', flexShrink: 0,
+                            border: '1px solid rgba(245,190,79,0.3)',
                           }}>
                             <Calendar size={17} strokeWidth={2.2} />
                           </div>
                           <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontWeight: 600, fontSize: '0.88rem', color: '#1c1917', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                              {ev.eventName || 'Wedding Gallery'}
+                            <div style={{ fontWeight: 600, fontSize: '0.88rem', color: '#ffffff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {ev.eventName || 'Gallery'}
                             </div>
-                            <div style={{ fontSize: '0.73rem', color: '#9e7b4f', fontWeight: 600, marginTop: '1px' }}>
+                            <div style={{ fontSize: '0.73rem', color: 'var(--accent-gold)', fontWeight: 600, marginTop: '1px', fontFamily: 'var(--font-mono)' }}>
                               {ev.accessCode}
-                              {ev.customerName ? <span style={{ color: '#a8a29e', fontWeight: 400 }}> · {ev.customerName}</span> : null}
+                              {ev.customerName ? <span style={{ color: '#94a3b8', fontWeight: 400 }}> · {ev.customerName}</span> : null}
                             </div>
                           </div>
-                          <ArrowRight size={14} color="#d6d3d1" />
+                          <ArrowRight size={14} color="#f5be4f" />
                         </div>
                       ))
                     )}
@@ -704,11 +784,11 @@ export const CustomerVerificationView: React.FC<CustomerVerificationProps> = ({
 
               {/* Main Card */}
               <div style={{
-                background: '#ffffff',
+                background: 'rgba(14, 18, 28, 0.9)',
                 borderRadius: '18px',
                 padding: '22px 20px',
-                boxShadow: '0 8px 24px -4px rgba(0,0,0,0.06)',
-                border: '1px solid rgba(0,0,0,0.05)',
+                boxShadow: '0 12px 32px rgba(0,0,0,0.7)',
+                border: '1px solid rgba(245, 190, 79, 0.25)',
                 display: 'flex',
                 flexDirection: 'column',
                 gap: '14px',
@@ -724,12 +804,13 @@ export const CustomerVerificationView: React.FC<CustomerVerificationProps> = ({
                     fontWeight: 700,
                     letterSpacing: '0.08em',
                     textTransform: 'uppercase',
-                    color: '#44403c',
+                    color: 'var(--accent-gold)',
+                    fontFamily: 'var(--font-mono)',
                   }}>
                     Enter Gallery Code
                   </span>
-                  <span style={{ color: '#a8a29e', fontSize: '0.72rem' }}>
-                    e.g. wed-2026-8824
+                  <span style={{ color: '#64748b', fontSize: '0.72rem', fontFamily: 'var(--font-mono)' }}>
+                    e.g. WED-2026-8824
                   </span>
                 </div>
 
@@ -738,13 +819,13 @@ export const CustomerVerificationView: React.FC<CustomerVerificationProps> = ({
                   display: 'flex',
                   alignItems: 'center',
                   gap: '12px',
-                  background: '#f5f5f4',
+                  background: 'rgba(7, 10, 16, 0.9)',
                   borderRadius: '10px',
                   padding: '12px 14px',
-                  border: '1px solid #e7e5e4',
+                  border: '1px solid rgba(245, 190, 79, 0.3)',
                   transition: 'border-color 0.2s',
                 }}>
-                  <Lock size={18} color="#a8a29e" />
+                  <Lock size={18} color="#f5be4f" />
                   <input 
                     type="text"
                     value={galleryCode}
@@ -755,11 +836,11 @@ export const CustomerVerificationView: React.FC<CustomerVerificationProps> = ({
                       background: 'transparent',
                       outline: 'none',
                       fontSize: '1.1rem',
-                      fontWeight: 600,
-                      letterSpacing: '0.06em',
-                      color: '#292524',
+                      fontWeight: 700,
+                      letterSpacing: '0.08em',
+                      color: '#ffffff',
                       width: '100%',
-                      fontFamily: "'Plus Jakarta Sans', monospace",
+                      fontFamily: 'var(--font-mono)',
                     }}
                   />
                 </div>
@@ -767,26 +848,15 @@ export const CustomerVerificationView: React.FC<CustomerVerificationProps> = ({
                 {/* Open Gallery Primary Button */}
                 <button 
                   onClick={handleOpenGallery}
+                  className="btn btn-primary"
                   style={{
-                    background: '#6d5538',
-                    color: '#ffffff',
-                    border: 'none',
-                    borderRadius: '10px',
+                    width: '100%',
                     padding: '14px 20px',
-                    fontSize: '0.96rem',
-                    fontWeight: 600,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '8px',
-                    cursor: 'pointer',
-                    boxShadow: '0 4px 14px rgba(109, 85, 56, 0.25)',
-                    transition: 'background 0.2s, transform 0.1s',
+                    fontSize: '0.98rem',
+                    borderRadius: '10px',
                   }}
-                  onMouseOver={(e) => (e.currentTarget.style.background = '#5c462c')}
-                  onMouseOut={(e) => (e.currentTarget.style.background = '#6d5538')}
                 >
-                  Open Gallery <ArrowRight size={17} strokeWidth={2.4} />
+                  Unlock Gallery <ArrowRight size={17} strokeWidth={2.4} />
                 </button>
 
                 {/* Divider */}
@@ -796,17 +866,18 @@ export const CustomerVerificationView: React.FC<CustomerVerificationProps> = ({
                   gap: '12px',
                   margin: '4px 0',
                 }}>
-                  <div style={{ flex: 1, height: '1px', background: '#e7e5e4' }} />
+                  <div style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.08)' }} />
                   <span style={{
                     fontSize: '0.68rem',
                     fontWeight: 700,
                     letterSpacing: '0.1em',
                     textTransform: 'uppercase',
-                    color: '#a8a29e',
+                    color: '#64748b',
+                    fontFamily: 'var(--font-mono)',
                   }}>
                     Or Access Instantly
                   </span>
-                  <div style={{ flex: 1, height: '1px', background: '#e7e5e4' }} />
+                  <div style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.08)' }} />
                 </div>
 
                 {/* Scan QR Code Card */}
@@ -824,47 +895,48 @@ export const CustomerVerificationView: React.FC<CustomerVerificationProps> = ({
                     gap: '14px',
                     padding: '12px 14px',
                     borderRadius: '12px',
-                    border: '1px solid #e7e5e4',
-                    background: '#ffffff',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    background: 'rgba(20, 26, 38, 0.6)',
                     cursor: 'pointer',
                     transition: 'all 0.2s',
                   }}
-                  onMouseOver={(e) => (e.currentTarget.style.borderColor = '#c7b299')}
-                  onMouseOut={(e) => (e.currentTarget.style.borderColor = '#e7e5e4')}
+                  onMouseOver={(e) => (e.currentTarget.style.borderColor = 'rgba(245,190,79,0.5)')}
+                  onMouseOut={(e) => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)')}
                 >
                   <div style={{
                     width: '42px',
                     height: '42px',
                     borderRadius: '10px',
-                    background: '#faeedb',
+                    background: 'rgba(245, 190, 79, 0.15)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    color: '#785834',
+                    color: 'var(--accent-gold)',
                     flexShrink: 0,
+                    border: '1px solid rgba(245, 190, 79, 0.3)',
                   }}>
                     <QrCode size={22} strokeWidth={2.2} />
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{
-                      fontWeight: 600,
+                      fontWeight: 700,
                       fontSize: '0.92rem',
-                      color: '#1c1917',
+                      color: '#ffffff',
                       display: 'flex',
                       alignItems: 'center',
                       gap: '4px',
                     }}>
-                      Scan QR Code <span style={{ color: '#a8a29e' }}>›</span>
+                      Scan QR Code <span style={{ color: 'var(--accent-gold)' }}>›</span>
                     </div>
                     <div style={{
                       fontSize: '0.76rem',
-                      color: '#78716c',
+                      color: '#94a3b8',
                       whiteSpace: 'nowrap',
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
                       marginTop: '2px',
                     }}>
-                      Printed on your invitation card or p...
+                      Printed on card, invitation, or table stand
                     </div>
                   </div>
                 </div>
@@ -873,16 +945,16 @@ export const CustomerVerificationView: React.FC<CustomerVerificationProps> = ({
                 <div style={{
                   textAlign: 'center',
                   fontSize: '0.78rem',
-                  color: '#78716c',
+                  color: '#64748b',
                   marginTop: '4px',
                 }}>
-                  Have a private link?{' '}
+                  Have a private token URL?{' '}
                   <span 
                     onClick={() => setShowPasteModal(true)}
                     style={{
                       textDecoration: 'underline',
-                      color: '#443727',
-                      fontWeight: 600,
+                      color: 'var(--accent-gold)',
+                      fontWeight: 700,
                       cursor: 'pointer',
                     }}
                   >
@@ -894,7 +966,7 @@ export const CustomerVerificationView: React.FC<CustomerVerificationProps> = ({
             </div>
           </div>
         ) : (
-          /* SCREEN 2: CUSTOMER GALLERY VIEW (AFTER PIN VERIFICATION) */
+          /* SCREEN 2: CUSTOMER GALLERY VIEW (OBSIDIAN NOIR PHOTO STUDIO) */
           <div style={{
             display: 'flex',
             flexDirection: 'column',
@@ -907,43 +979,45 @@ export const CustomerVerificationView: React.FC<CustomerVerificationProps> = ({
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              padding: '12px 20px',
-              borderBottom: '1px solid rgba(0,0,0,0.06)',
+              padding: '12px 18px',
+              borderBottom: '1px solid rgba(255,255,255,0.08)',
+              background: 'rgba(10, 14, 22, 0.95)',
             }}>
               <button 
                 onClick={() => setInGallery(false)} 
                 style={{
-                  background: 'none',
-                  border: 'none',
+                  background: 'rgba(255,255,255,0.06)',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  borderRadius: '8px',
                   cursor: 'pointer',
                   padding: '6px',
-                  color: '#292524',
+                  color: '#f8fafc',
                   display: 'flex',
                   alignItems: 'center',
                 }}
               >
-                <ChevronLeft size={22} strokeWidth={2.4} />
+                <ChevronLeft size={20} strokeWidth={2.4} />
               </button>
 
               <div style={{ textAlign: 'center', maxWidth: '160px', overflow: 'hidden' }}>
                 <span style={{
-                  fontFamily: "'Playfair Display', Georgia, serif",
-                  fontSize: '1rem',
-                  fontWeight: 700,
-                  color: '#1a1816',
+                  fontFamily: 'Outfit, sans-serif',
+                  fontSize: '0.98rem',
+                  fontWeight: 800,
+                  color: '#ffffff',
                   display: 'block',
                   whiteSpace: 'nowrap',
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
                 }}>
-                  {eventDetails?.customerName || 'Wedding Gallery'}
+                  {eventDetails?.customerName || 'Private Gallery'}
                 </span>
-                <span style={{ fontSize: '0.68rem', color: '#9e7b4f', fontWeight: 600, letterSpacing: '0.04em' }}>
+                <span style={{ fontSize: '0.68rem', color: 'var(--accent-gold)', fontWeight: 700, letterSpacing: '0.04em', fontFamily: 'var(--font-mono)' }}>
                   {galleryCode}
                 </span>
               </div>
 
-              {/* Action Buttons: Prominent Capture Photo, Upload, and Favorites */}
+              {/* Action Buttons: Capture Photo, Upload, Favorites */}
               <div style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -958,20 +1032,17 @@ export const CustomerVerificationView: React.FC<CustomerVerificationProps> = ({
                     alignItems: 'center',
                     gap: '5px',
                     padding: '6px 12px',
-                    background: 'linear-gradient(135deg, #e2b855 0%, #b88628 100%)',
-                    color: '#08090c',
+                    background: 'linear-gradient(135deg, #f5be4f 0%, #d49a2a 100%)',
+                    color: '#050608',
                     borderRadius: '999px',
                     border: 'none',
                     fontSize: '0.78rem',
                     fontWeight: 800,
                     cursor: 'pointer',
-                    boxShadow: '0 2px 10px rgba(226, 184, 85, 0.4)',
-                    transition: 'transform 0.15s',
+                    boxShadow: '0 2px 10px rgba(245, 190, 79, 0.4)',
                   }}
-                  onMouseDown={e => { (e.currentTarget as HTMLElement).style.transform = 'scale(0.96)'; }}
-                  onMouseUp={e => { (e.currentTarget as HTMLElement).style.transform = 'scale(1)'; }}
                 >
-                  <Camera size={14} strokeWidth={2.6} /> 📷 Capture Photo
+                  <Camera size={14} strokeWidth={2.6} /> 📷 Snap
                 </button>
 
                 <button
@@ -983,14 +1054,13 @@ export const CustomerVerificationView: React.FC<CustomerVerificationProps> = ({
                     alignItems: 'center',
                     gap: '4px',
                     padding: '6px 10px',
-                    background: '#6d5538',
+                    background: 'rgba(255,255,255,0.08)',
                     color: '#ffffff',
                     borderRadius: '999px',
-                    border: 'none',
+                    border: '1px solid rgba(255,255,255,0.15)',
                     fontSize: '0.75rem',
                     fontWeight: 600,
                     cursor: 'pointer',
-                    boxShadow: '0 2px 6px rgba(109, 85, 56, 0.25)',
                   }}
                 >
                   <Upload size={13} strokeWidth={2.4} />
@@ -1009,13 +1079,14 @@ export const CustomerVerificationView: React.FC<CustomerVerificationProps> = ({
                   alignItems: 'center',
                   gap: '4px',
                   padding: '5px 9px',
-                  background: '#faeedb',
+                  background: 'rgba(239, 68, 68, 0.15)',
+                  border: '1px solid rgba(239, 68, 68, 0.3)',
                   borderRadius: '999px',
-                  color: '#6d5538',
+                  color: '#f87171',
                   fontSize: '0.75rem',
                   fontWeight: 700,
                 }}>
-                  <Heart size={13} fill="#6d5538" /> {favoriteCount}
+                  <Heart size={13} fill="#ef4444" /> {favoriteCount}
                 </div>
 
                 {/* Search Button */}
@@ -1028,14 +1099,13 @@ export const CustomerVerificationView: React.FC<CustomerVerificationProps> = ({
                     alignItems: 'center',
                     gap: '4px',
                     padding: '6px 9px',
-                    background: showSearch ? '#6d5538' : '#efece6',
-                    color: showSearch ? '#ffffff' : '#57534e',
+                    background: showSearch ? 'var(--accent-gold)' : 'rgba(255,255,255,0.08)',
+                    color: showSearch ? '#050608' : '#ffffff',
                     borderRadius: '999px',
                     border: 'none',
                     fontSize: '0.75rem',
-                    fontWeight: 600,
+                    fontWeight: 700,
                     cursor: 'pointer',
-                    boxShadow: '0 2px 6px rgba(0,0,0,0.06)',
                   }}
                 >
                   <Search size={13} strokeWidth={2.4} />
@@ -1054,14 +1124,13 @@ export const CustomerVerificationView: React.FC<CustomerVerificationProps> = ({
                     alignItems: 'center',
                     gap: '4px',
                     padding: '6px 11px',
-                    background: isEditingEnabled ? '#b88628' : '#efece6',
-                    color: isEditingEnabled ? '#ffffff' : '#57534e',
+                    background: isEditingEnabled ? 'var(--accent-gold)' : 'rgba(255,255,255,0.08)',
+                    color: isEditingEnabled ? '#050608' : '#ffffff',
                     borderRadius: '999px',
                     border: 'none',
                     fontSize: '0.75rem',
-                    fontWeight: 700,
+                    fontWeight: 800,
                     cursor: 'pointer',
-                    boxShadow: isEditingEnabled ? '0 2px 8px rgba(184, 134, 40, 0.35)' : 'none',
                   }}
                 >
                   <Edit3 size={13} strokeWidth={2.4} /> {isEditingEnabled ? 'Done' : 'Edit'}
@@ -1072,15 +1141,15 @@ export const CustomerVerificationView: React.FC<CustomerVerificationProps> = ({
             {/* Event Cover Banner */}
             <div style={{ position: 'relative', height: '190px', overflow: 'hidden' }}>
               <img 
-                src={eventDetails?.coverImage || '/wedding_couple_hero.jpg'} 
-                alt="Event Hero" 
+                src={heroLensImage} 
+                alt="Event Cover" 
                 style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                 onError={(e) => { (e.target as HTMLImageElement).src = '/wedding_couple_hero.jpg'; }}
               />
               <div style={{
                 position: 'absolute',
                 inset: 0,
-                background: 'linear-gradient(to top, rgba(20,18,16,0.92) 0%, rgba(20,18,16,0.2) 60%, transparent 100%)',
+                background: 'linear-gradient(to top, rgba(7,9,14,0.95) 0%, rgba(7,9,14,0.3) 60%, transparent 100%)',
                 display: 'flex',
                 flexDirection: 'column',
                 justifyContent: 'flex-end',
@@ -1089,13 +1158,13 @@ export const CustomerVerificationView: React.FC<CustomerVerificationProps> = ({
               }}>
                 <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
                   <div>
-                    <div style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.1em', color: '#f3cf7a', fontWeight: 700 }}>
-                      {eventDetails?.eventType || 'WEDDING'} GALLERY • {galleryCode}
+                    <div style={{ fontSize: '0.68rem', textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--accent-gold)', fontWeight: 800, fontFamily: 'var(--font-mono)' }}>
+                      {eventDetails?.eventType || 'EVENT'} VAULT • {galleryCode}
                     </div>
-                    <h3 style={{ fontFamily: "'Playfair Display', serif", fontSize: '1.35rem', margin: '2px 0 0 0', lineHeight: 1.2 }}>
-                      {eventDetails?.eventName || 'Wedding of Marcus & Sophia'}
+                    <h3 style={{ fontFamily: 'Outfit, sans-serif', fontSize: '1.4rem', fontWeight: 800, margin: '2px 0 0 0', lineHeight: 1.2 }}>
+                      {eventDetails?.eventName || 'Live Photography Event'}
                     </h3>
-                    <div style={{ fontSize: '0.74rem', color: 'rgba(255,255,255,0.85)', marginTop: '4px' }}>
+                    <div style={{ fontSize: '0.74rem', color: '#94a3b8', marginTop: '4px' }}>
                       {eventDetails?.eventDate || '15 Sep 2026'} {eventDetails?.location ? `• ${eventDetails.location}` : ''}
                     </div>
                   </div>
@@ -1104,22 +1173,14 @@ export const CustomerVerificationView: React.FC<CustomerVerificationProps> = ({
                   <button
                     id="btn-hero-capture-photo"
                     onClick={() => setShowCameraModal(true)}
+                    className="btn btn-primary"
                     style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '7px',
                       padding: '8px 16px',
-                      borderRadius: '10px',
-                      background: 'linear-gradient(135deg, #e2b855 0%, #b88628 100%)',
-                      color: '#08090c',
-                      fontWeight: 800,
                       fontSize: '0.82rem',
-                      border: 'none',
-                      cursor: 'pointer',
-                      boxShadow: '0 4px 14px rgba(226, 184, 85, 0.4)',
+                      borderRadius: '10px',
                     }}
                   >
-                  <Camera size={15} strokeWidth={2.5} /> 📷 Capture Photo
+                    <Camera size={15} strokeWidth={2.5} /> 📷 Snap Photo
                   </button>
                 </div>
               </div>
@@ -1129,15 +1190,15 @@ export const CustomerVerificationView: React.FC<CustomerVerificationProps> = ({
             {showSearch && (
               <div style={{
                 padding: '10px 20px',
-                background: '#faf9f6',
-                borderBottom: '1px solid rgba(0,0,0,0.06)',
+                background: '#0d111a',
+                borderBottom: '1px solid rgba(255,255,255,0.08)',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '8px',
                 animation: 'fadeIn 0.2s ease',
               }}>
                 <div style={{ position: 'relative', flex: 1 }}>
-                  <Search size={14} color="#78716c" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
+                  <Search size={14} color="#f5be4f" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
                   <input
                     id="customer-search-input"
                     value={searchQuery}
@@ -1148,10 +1209,10 @@ export const CustomerVerificationView: React.FC<CustomerVerificationProps> = ({
                       width: '100%',
                       padding: '8px 30px 8px 34px',
                       borderRadius: '8px',
-                      border: '1px solid #d6d3d1',
-                      background: '#ffffff',
+                      border: '1px solid rgba(245,190,79,0.3)',
+                      background: '#07090e',
                       fontSize: '0.82rem',
-                      color: '#1c1917',
+                      color: '#ffffff',
                       outline: 'none',
                       boxSizing: 'border-box',
                     }}
@@ -1159,7 +1220,7 @@ export const CustomerVerificationView: React.FC<CustomerVerificationProps> = ({
                   {searchQuery && (
                     <button
                       onClick={() => setSearchQuery('')}
-                      style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#78716c', cursor: 'pointer', padding: '2px', display: 'flex' }}
+                      style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '2px', display: 'flex' }}
                     >
                       <X size={13} />
                     </button>
@@ -1167,7 +1228,7 @@ export const CustomerVerificationView: React.FC<CustomerVerificationProps> = ({
                 </div>
                 <button
                   onClick={() => { setShowSearch(false); setSearchQuery(''); }}
-                  style={{ background: 'none', border: 'none', color: '#78716c', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer' }}
+                  style={{ background: 'none', border: 'none', color: '#94a3b8', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer' }}
                 >
                   Cancel
                 </button>
@@ -1178,37 +1239,37 @@ export const CustomerVerificationView: React.FC<CustomerVerificationProps> = ({
             {isEditingEnabled && (
               <div style={{
                 padding: '10px 20px',
-                background: '#fdf6e7',
-                borderBottom: '1px solid #faeedb',
+                background: 'rgba(245, 190, 79, 0.12)',
+                borderBottom: '1px solid rgba(245, 190, 79, 0.3)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
                 flexWrap: 'wrap',
                 gap: '8px',
               }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.78rem', color: '#785834', fontWeight: 700 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.78rem', color: 'var(--accent-gold)', fontWeight: 800 }}>
                   <Edit3 size={13} /> Editing Mode Active ({photos.length} photos)
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <button
                     onClick={() => setSelectedPhotoIds(selectedPhotoIds.length === filteredPhotos.length && filteredPhotos.length > 0 ? [] : filteredPhotos.map(p => p.id))}
-                    style={{ padding: '5px 10px', borderRadius: '6px', border: '1px solid #d6d3d1', background: '#fff', fontSize: '0.72rem', fontWeight: 600, color: '#443727', cursor: 'pointer' }}
+                    style={{ padding: '5px 10px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.08)', fontSize: '0.72rem', fontWeight: 600, color: '#ffffff', cursor: 'pointer' }}
                   >
                     {selectedPhotoIds.length === filteredPhotos.length && filteredPhotos.length > 0 ? 'Deselect All' : 'Select All'}
                   </button>
                   {selectedPhotoIds.length > 0 && (
                     <button
                       onClick={handleBatchDelete}
-                      style={{ padding: '5px 12px', borderRadius: '6px', border: 'none', background: '#dc2626', color: '#fff', fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                      style={{ padding: '5px 12px', borderRadius: '6px', border: 'none', background: '#ef4444', color: '#fff', fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
                     >
-                      <Trash2 size={11} /> Delete Selected ({selectedPhotoIds.length})
+                      <Trash2 size={11} /> Delete ({selectedPhotoIds.length})
                     </button>
                   )}
                   <button
                     onClick={() => setIsEditingEnabled(false)}
-                    style={{ padding: '5px 12px', borderRadius: '6px', border: 'none', background: '#6d5538', color: '#fff', fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer' }}
+                    style={{ padding: '5px 12px', borderRadius: '6px', border: 'none', background: 'var(--accent-gold)', color: '#050608', fontSize: '0.72rem', fontWeight: 800, cursor: 'pointer' }}
                   >
-                    Done Editing
+                    Done
                   </button>
                 </div>
               </div>
@@ -1221,8 +1282,8 @@ export const CustomerVerificationView: React.FC<CustomerVerificationProps> = ({
               padding: '12px 20px',
               overflowX: 'auto',
               scrollbarWidth: 'none',
-              borderBottom: '1px solid rgba(0,0,0,0.05)',
-              background: '#faf9f6',
+              borderBottom: '1px solid rgba(255,255,255,0.06)',
+              background: '#090c13',
             }}>
               {['All Photos', 'Wedding', 'Ceremony', 'Reception', 'Couple', 'Details'].map((album) => {
                 const count = album === 'All Photos' 
@@ -1236,12 +1297,12 @@ export const CustomerVerificationView: React.FC<CustomerVerificationProps> = ({
                       padding: '6px 14px',
                       borderRadius: '999px',
                       fontSize: '0.78rem',
-                      fontWeight: 600,
+                      fontWeight: 700,
                       border: 'none',
                       cursor: 'pointer',
                       whiteSpace: 'nowrap',
-                      background: activeAlbum === album ? '#6d5538' : '#efece6',
-                      color: activeAlbum === album ? '#ffffff' : '#57534e',
+                      background: activeAlbum === album ? 'linear-gradient(135deg, #f5be4f 0%, #d49a2a 100%)' : 'rgba(255,255,255,0.06)',
+                      color: activeAlbum === album ? '#050608' : '#94a3b8',
                       transition: 'all 0.2s',
                     }}
                   >
@@ -1251,9 +1312,8 @@ export const CustomerVerificationView: React.FC<CustomerVerificationProps> = ({
               })}
             </div>
 
-            {/* Clean Wedding Photos Grid or Empty State */}
+            {/* Photos Grid or Empty State */}
             {filteredPhotos.length === 0 ? (
-              /* No Photos / Empty State with direct Camera action */
               <div style={{
                 display: 'flex',
                 flexDirection: 'column',
@@ -1261,9 +1321,9 @@ export const CustomerVerificationView: React.FC<CustomerVerificationProps> = ({
                 justifyContent: 'center',
                 padding: '48px 24px',
                 textAlign: 'center',
-                background: 'rgba(255, 255, 255, 0.4)',
+                background: 'rgba(14, 18, 28, 0.5)',
                 borderRadius: '16px',
-                border: '2px dashed rgba(180, 147, 90, 0.35)',
+                border: '2px dashed rgba(245, 190, 79, 0.3)',
                 margin: '20px',
                 flex: 1,
               }}>
@@ -1271,73 +1331,48 @@ export const CustomerVerificationView: React.FC<CustomerVerificationProps> = ({
                   width: '64px',
                   height: '64px',
                   borderRadius: '50%',
-                  background: 'linear-gradient(135deg, rgba(226, 184, 85, 0.25), rgba(184, 134, 40, 0.15))',
-                  border: '1px solid rgba(226, 184, 85, 0.4)',
+                  background: 'linear-gradient(135deg, rgba(245, 190, 79, 0.2), rgba(212, 154, 42, 0.1))',
+                  border: '1px solid rgba(245, 190, 79, 0.4)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  color: '#9e7b4f',
+                  color: 'var(--accent-gold)',
                   marginBottom: '16px',
-                  boxShadow: '0 0 20px rgba(226, 184, 85, 0.2)',
+                  boxShadow: '0 0 24px rgba(245, 190, 79, 0.25)',
                 }}>
                   <Camera size={30} strokeWidth={2.2} />
                 </div>
                 <h4 style={{
-                  fontFamily: "'Playfair Display', Georgia, serif",
+                  fontFamily: 'Outfit, sans-serif',
                   fontSize: '1.25rem',
-                  color: '#292524',
-                  fontWeight: 700,
+                  color: '#ffffff',
+                  fontWeight: 800,
                   marginBottom: '8px',
                 }}>
-                  {activeAlbum === 'All Photos' ? 'No Wedding Photos Yet' : `No photos in "${activeAlbum}"`}
+                  {activeAlbum === 'All Photos' ? 'No Photos in Vault Yet' : `No photos in "${activeAlbum}"`}
                 </h4>
                 <p style={{
                   fontSize: '0.85rem',
-                  color: '#78716c',
+                  color: '#94a3b8',
                   maxWidth: '320px',
                   lineHeight: 1.5,
                   marginBottom: '20px',
                 }}>
-                  {activeAlbum === 'All Photos'
-                    ? `Be the first to capture a timeless memory for ${eventDetails?.customerName || 'this wedding'}! Photos will be saved privately in this event gallery.`
-                    : `No photos have been categorized under ${activeAlbum} yet.`}
+                  Capture a photo using the live camera or upload files to save them directly into this private vault.
                 </p>
                 <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', justifyContent: 'center' }}>
                   <button
                     id="empty-state-capture-btn"
                     onClick={() => setShowCameraModal(true)}
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      padding: '11px 22px',
-                      borderRadius: '12px',
-                      background: 'linear-gradient(135deg, #e2b855 0%, #b88628 100%)',
-                      color: '#08090c',
-                      fontWeight: 800,
-                      fontSize: '0.88rem',
-                      border: 'none',
-                      cursor: 'pointer',
-                      boxShadow: '0 4px 16px rgba(226, 184, 85, 0.4)',
-                    }}
+                    className="btn btn-primary"
+                    style={{ padding: '11px 22px', fontSize: '0.88rem' }}
                   >
-                    <Camera size={16} strokeWidth={2.6} /> 📷 Capture Photo
+                    <Camera size={16} strokeWidth={2.6} /> 📷 Snap Photo
                   </button>
                   <button
                     onClick={() => fileInputRef.current?.click()}
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      padding: '11px 18px',
-                      borderRadius: '12px',
-                      background: '#efece6',
-                      color: '#57534e',
-                      fontWeight: 600,
-                      fontSize: '0.88rem',
-                      border: 'none',
-                      cursor: 'pointer',
-                    }}
+                    className="btn btn-secondary"
+                    style={{ padding: '11px 18px', fontSize: '0.88rem' }}
                   >
                     <Upload size={15} /> Upload Files
                   </button>
@@ -1363,18 +1398,21 @@ export const CustomerVerificationView: React.FC<CustomerVerificationProps> = ({
                         borderRadius: '12px',
                         overflow: 'hidden',
                         aspectRatio: '1',
-                        boxShadow: '0 4px 14px rgba(0,0,0,0.1)',
+                        boxShadow: '0 8px 24px rgba(0,0,0,0.6)',
                         cursor: 'pointer',
-                        background: '#eae6df',
-                        transition: 'transform 0.15s, box-shadow 0.15s',
+                        background: '#0d111a',
+                        border: '1px solid rgba(255,255,255,0.08)',
+                        transition: 'transform 0.2s, box-shadow 0.2s, border-color 0.2s',
                       }}
                       onMouseEnter={e => {
-                        (e.currentTarget as HTMLElement).style.transform = 'translateY(-2px)';
-                        (e.currentTarget as HTMLElement).style.boxShadow = '0 8px 20px rgba(0,0,0,0.16)';
+                        (e.currentTarget as HTMLElement).style.transform = 'translateY(-3px)';
+                        (e.currentTarget as HTMLElement).style.borderColor = 'rgba(245, 190, 79, 0.5)';
+                        (e.currentTarget as HTMLElement).style.boxShadow = '0 12px 30px rgba(0,0,0,0.8), 0 0 15px rgba(245,190,79,0.2)';
                       }}
                       onMouseLeave={e => {
                         (e.currentTarget as HTMLElement).style.transform = 'translateY(0)';
-                        (e.currentTarget as HTMLElement).style.boxShadow = '0 4px 14px rgba(0,0,0,0.1)';
+                        (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,255,255,0.08)';
+                        (e.currentTarget as HTMLElement).style.boxShadow = '0 8px 24px rgba(0,0,0,0.6)';
                       }}
                     >
                       <img 
@@ -1392,23 +1430,23 @@ export const CustomerVerificationView: React.FC<CustomerVerificationProps> = ({
                             top: '8px',
                             left: '8px',
                             zIndex: 4,
-                            background: selectedPhotoIds.includes(photo.id) ? '#b88628' : 'rgba(0,0,0,0.65)',
+                            background: selectedPhotoIds.includes(photo.id) ? 'var(--accent-gold)' : 'rgba(0,0,0,0.75)',
                             borderRadius: '6px',
                             padding: '4px',
-                            color: '#ffffff',
+                            color: selectedPhotoIds.includes(photo.id) ? '#050608' : '#ffffff',
                             cursor: 'pointer',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
+                            boxShadow: '0 2px 8px rgba(0,0,0,0.5)',
                           }}
-                          title={selectedPhotoIds.includes(photo.id) ? 'Deselect photo' : 'Select photo'}
+                          title={selectedPhotoIds.includes(photo.id) ? 'Deselect' : 'Select'}
                         >
                           {selectedPhotoIds.includes(photo.id) ? <CheckSquare size={16} /> : <Square size={16} />}
                         </div>
                       )}
 
-                      {/* Capture Date / Time Badge */}
+                      {/* Capture Date Badge */}
                       {!isEditingEnabled && (
                         <div style={{
                           position: 'absolute',
@@ -1416,22 +1454,23 @@ export const CustomerVerificationView: React.FC<CustomerVerificationProps> = ({
                           left: '8px',
                           padding: '3px 7px',
                           borderRadius: '6px',
-                          background: 'rgba(15, 17, 23, 0.75)',
+                          background: 'rgba(5, 7, 12, 0.8)',
                           backdropFilter: 'blur(6px)',
-                          border: '1px solid rgba(226, 184, 85, 0.3)',
-                          color: '#f3cf7a',
+                          border: '1px solid rgba(245, 190, 79, 0.3)',
+                          color: 'var(--text-gold)',
                           fontSize: '0.62rem',
-                          fontWeight: 600,
+                          fontWeight: 700,
                           display: 'flex',
                           alignItems: 'center',
                           gap: '4px',
                           zIndex: 2,
+                          fontFamily: 'var(--font-mono)',
                         }}>
                           <Calendar size={10} /> {photo.capturedAt}
                         </div>
                       )}
 
-                      {/* Edit Details Pencil in Editing Mode */}
+                      {/* Edit Details in Editing Mode */}
                       {isEditingEnabled && (
                         <button
                           onClick={(e) => startEditingPhoto(photo, e)}
@@ -1442,14 +1481,14 @@ export const CustomerVerificationView: React.FC<CustomerVerificationProps> = ({
                             width: '30px',
                             height: '30px',
                             borderRadius: '50%',
-                            background: 'rgba(226,184,85,0.95)',
+                            background: 'var(--accent-gold)',
                             border: 'none',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
                             cursor: 'pointer',
-                            color: '#08090c',
-                            boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+                            color: '#050608',
+                            boxShadow: '0 2px 8px rgba(0,0,0,0.4)',
                             zIndex: 3,
                           }}
                           title="Edit Title & Album"
@@ -1468,20 +1507,20 @@ export const CustomerVerificationView: React.FC<CustomerVerificationProps> = ({
                           width: '30px',
                           height: '30px',
                           borderRadius: '50%',
-                          background: 'rgba(255, 255, 255, 0.9)',
-                          backdropFilter: 'blur(4px)',
-                          border: 'none',
+                          background: 'rgba(10, 14, 22, 0.8)',
+                          backdropFilter: 'blur(6px)',
+                          border: '1px solid rgba(255,255,255,0.15)',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
                           cursor: 'pointer',
-                          color: isFav ? '#dc2626' : '#57534e',
-                          boxShadow: '0 2px 8px rgba(0,0,0,0.18)',
+                          color: isFav ? '#ef4444' : '#ffffff',
+                          boxShadow: '0 2px 8px rgba(0,0,0,0.4)',
                           zIndex: 2,
                         }}
                         title={isFav ? 'Remove Favorite' : 'Add to Favorites'}
                       >
-                        <Heart size={15} fill={isFav ? '#dc2626' : 'none'} />
+                        <Heart size={15} fill={isFav ? '#ef4444' : 'none'} />
                       </button>
 
                       {/* Bottom Caption Pill */}
@@ -1492,8 +1531,8 @@ export const CustomerVerificationView: React.FC<CustomerVerificationProps> = ({
                         right: '8px',
                         padding: '5px 8px',
                         borderRadius: '6px',
-                        background: 'linear-gradient(to top, rgba(0,0,0,0.85), rgba(0,0,0,0.55))',
-                        backdropFilter: 'blur(4px)',
+                        background: 'linear-gradient(to top, rgba(0,0,0,0.95), rgba(0,0,0,0.6))',
+                        backdropFilter: 'blur(6px)',
                         color: '#ffffff',
                         display: 'flex',
                         alignItems: 'center',
@@ -1511,11 +1550,12 @@ export const CustomerVerificationView: React.FC<CustomerVerificationProps> = ({
                         </span>
                         <span style={{
                           fontSize: '0.6rem',
-                          color: '#f3cf7a',
-                          background: 'rgba(226,184,85,0.15)',
+                          color: 'var(--accent-gold)',
+                          background: 'rgba(245,190,79,0.15)',
                           padding: '1px 5px',
                           borderRadius: '4px',
                           flexShrink: 0,
+                          fontFamily: 'var(--font-mono)',
                         }}>
                           {photo.album}
                         </span>
@@ -1529,37 +1569,23 @@ export const CustomerVerificationView: React.FC<CustomerVerificationProps> = ({
             {/* Gallery Bottom Action Footer */}
             <div style={{
               padding: '14px 20px',
-              borderTop: '1px solid rgba(0,0,0,0.06)',
-              background: '#ffffff',
+              borderTop: '1px solid rgba(255,255,255,0.08)',
+              background: '#07090e',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
               gap: '10px',
             }}>
-              <div style={{ fontSize: '0.78rem', color: '#78716c' }}>
-                <strong>{photos.length}</strong> photos stored in <strong>{galleryCode}</strong>
+              <div style={{ fontSize: '0.78rem', color: '#94a3b8' }}>
+                <strong style={{ color: '#ffffff' }}>{photos.length}</strong> photos stored in <strong style={{ color: 'var(--accent-gold)' }}>{galleryCode}</strong>
               </div>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <button
-                  onClick={() => setShowCameraModal(true)}
-                  style={{
-                    background: 'linear-gradient(135deg, #e2b855 0%, #b88628 100%)',
-                    color: '#08090c',
-                    border: 'none',
-                    borderRadius: '8px',
-                    padding: '8px 14px',
-                    fontSize: '0.8rem',
-                    fontWeight: 800,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    cursor: 'pointer',
-                    boxShadow: '0 2px 8px rgba(226, 184, 85, 0.3)',
-                  }}
-                >
-                  <Camera size={14} strokeWidth={2.5} /> 📷 Capture
-                </button>
-              </div>
+              <button
+                onClick={() => setShowCameraModal(true)}
+                className="btn btn-primary"
+                style={{ padding: '8px 14px', fontSize: '0.8rem', borderRadius: '8px' }}
+              >
+                <Camera size={14} strokeWidth={2.5} /> 📷 Snap
+              </button>
             </div>
           </div>
         )}
@@ -1571,8 +1597,8 @@ export const CustomerVerificationView: React.FC<CustomerVerificationProps> = ({
         <div style={{
           position: 'fixed',
           inset: 0,
-          background: 'rgba(0,0,0,0.75)',
-          backdropFilter: 'blur(8px)',
+          background: 'rgba(0,0,0,0.85)',
+          backdropFilter: 'blur(10px)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -1580,19 +1606,20 @@ export const CustomerVerificationView: React.FC<CustomerVerificationProps> = ({
           padding: '20px',
         }}>
           <div style={{
-            background: '#ffffff',
+            background: '#0d111a',
+            border: '1px solid rgba(245,190,79,0.35)',
             borderRadius: '24px',
             padding: '28px',
             maxWidth: '360px',
             width: '100%',
             textAlign: 'center',
-            boxShadow: '0 20px 40px rgba(0,0,0,0.3)',
-            color: '#1c1917',
+            boxShadow: '0 25px 60px rgba(0,0,0,0.9), 0 0 30px rgba(245,190,79,0.15)',
+            color: '#f8fafc',
           }}>
             <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
               <button 
-                onClick={() => setShowQrModal(false)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#a8a29e' }}
+                onClick={() => setShowQrModal(false)} 
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8' }}
               >
                 <X size={20} />
               </button>
@@ -1601,54 +1628,45 @@ export const CustomerVerificationView: React.FC<CustomerVerificationProps> = ({
               width: '64px',
               height: '64px',
               borderRadius: '16px',
-              background: '#faeedb',
+              background: 'rgba(245,190,79,0.15)',
+              border: '1px solid rgba(245,190,79,0.3)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               margin: '0 auto 16px auto',
-              color: '#785834',
+              color: 'var(--accent-gold)',
             }}>
               <QrCode size={34} />
             </div>
-            <h3 style={{ fontFamily: "'Playfair Display', serif", fontSize: '1.4rem', marginBottom: '8px' }}>
+            <h3 style={{ fontFamily: 'Outfit, sans-serif', fontSize: '1.4rem', fontWeight: 800, marginBottom: '8px' }}>
               Scan Gallery QR Code
             </h3>
-            <p style={{ fontSize: '0.85rem', color: '#78716c', marginBottom: '20px', lineHeight: 1.4 }}>
-              Point your camera at the QR code printed on the couple's wedding card or table keepsake.
+            <p style={{ fontSize: '0.85rem', color: '#94a3b8', marginBottom: '20px', lineHeight: 1.4 }}>
+              Point your camera at the QR code printed on the event card or table stand.
             </p>
-            {/* Simulated viewfinder */}
+            {/* Viewfinder */}
             <div style={{
               width: '200px',
               height: '200px',
               margin: '0 auto 20px auto',
-              border: '2px dashed #b4935a',
+              border: '2px dashed var(--accent-gold)',
               borderRadius: '16px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              background: '#fafaf9',
-              position: 'relative',
+              background: 'rgba(5,7,12,0.8)',
             }}>
-              <QrCode size={110} color="#6d5538" style={{ opacity: 0.85 }} />
+              <QrCode size={110} color="#f5be4f" style={{ opacity: 0.9 }} />
             </div>
             <button 
               onClick={() => {
                 setShowQrModal(false);
                 setGalleryCode('WED-2026-8824');
                 setInGallery(true);
-                triggerNotify('QR Code scanned: WED-2026-8824');
+                triggerNotify('QR Code verified: WED-2026-8824');
               }}
-              style={{
-                width: '100%',
-                background: '#6d5538',
-                color: '#ffffff',
-                border: 'none',
-                borderRadius: '10px',
-                padding: '12px',
-                fontWeight: 600,
-                fontSize: '0.9rem',
-                cursor: 'pointer',
-              }}
+              className="btn btn-primary"
+              style={{ width: '100%', padding: '12px' }}
             >
               Simulate Instant QR Scan
             </button>
@@ -1661,8 +1679,8 @@ export const CustomerVerificationView: React.FC<CustomerVerificationProps> = ({
         <div style={{
           position: 'fixed',
           inset: 0,
-          background: 'rgba(0,0,0,0.75)',
-          backdropFilter: 'blur(8px)',
+          background: 'rgba(0,0,0,0.85)',
+          backdropFilter: 'blur(10px)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -1670,37 +1688,31 @@ export const CustomerVerificationView: React.FC<CustomerVerificationProps> = ({
           padding: '20px',
         }}>
           <div style={{
-            background: '#ffffff',
+            background: '#0d111a',
+            border: '1px solid rgba(245,190,79,0.35)',
             borderRadius: '20px',
             padding: '24px',
             maxWidth: '380px',
             width: '100%',
-            color: '#1c1917',
+            color: '#f8fafc',
+            boxShadow: '0 25px 60px rgba(0,0,0,0.9)',
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-              <h4 style={{ fontFamily: "'Playfair Display', serif", fontSize: '1.2rem' }}>Paste Private Gallery Link</h4>
-              <button onClick={() => setShowPasteModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
+              <h4 style={{ fontFamily: 'Outfit, sans-serif', fontSize: '1.2rem', fontWeight: 800 }}>Paste Private Gallery Link</h4>
+              <button onClick={() => setShowPasteModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8' }}>
                 <X size={18} />
               </button>
             </div>
-            <p style={{ fontSize: '0.8rem', color: '#78716c', marginBottom: '14px' }}>
-              If you received a direct URL via WhatsApp, SMS, or email, paste it below to enter directly:
+            <p style={{ fontSize: '0.8rem', color: '#94a3b8', marginBottom: '14px' }}>
+              Paste your direct URL or gallery token below to unlock:
             </p>
             <input 
               type="text" 
               value={pastedLink} 
               onChange={(e) => setPastedLink(e.target.value)}
-              placeholder="https://photovault.app/gallery/WED-2026-8824"
+              placeholder="https://nagendra-ctrl.github.io/live-image-share/#/gallery/tok_..."
               className="input-field"
-              style={{
-                background: '#f5f5f4',
-                color: '#1c1917',
-                border: '1px solid #d6d3d1',
-                borderRadius: '8px',
-                padding: '10px 12px',
-                fontSize: '0.85rem',
-                marginBottom: '16px',
-              }}
+              style={{ marginBottom: '16px' }}
             />
             <button 
               onClick={() => {
@@ -1709,17 +1721,8 @@ export const CustomerVerificationView: React.FC<CustomerVerificationProps> = ({
                 setInGallery(true);
                 triggerNotify('Link verified: WED-2026-8824');
               }}
-              style={{
-                width: '100%',
-                background: '#6d5538',
-                color: '#ffffff',
-                border: 'none',
-                borderRadius: '8px',
-                padding: '10px',
-                fontWeight: 600,
-                fontSize: '0.875rem',
-                cursor: 'pointer',
-              }}
+              className="btn btn-primary"
+              style={{ width: '100%', padding: '12px' }}
             >
               Verify & Open Gallery
             </button>
@@ -1727,13 +1730,13 @@ export const CustomerVerificationView: React.FC<CustomerVerificationProps> = ({
         </div>
       )}
 
-      {/* MODAL 3: Full-Screen Lightbox Photo Viewer */}
+      {/* MODAL 3: Lightbox Photo Viewer */}
       {activePhoto && (
         <div style={{
           position: 'fixed',
           inset: 0,
-          background: 'rgba(8, 9, 12, 0.96)',
-          backdropFilter: 'blur(12px)',
+          background: 'rgba(3, 4, 6, 0.98)',
+          backdropFilter: 'blur(16px)',
           display: 'flex',
           flexDirection: 'column',
           zIndex: 120,
@@ -1746,16 +1749,16 @@ export const CustomerVerificationView: React.FC<CustomerVerificationProps> = ({
             padding: '16px 24px',
             color: '#f8fafc',
             borderBottom: '1px solid rgba(255,255,255,0.08)',
-            background: 'rgba(10, 12, 16, 0.8)',
+            background: 'rgba(8, 11, 18, 0.9)',
           }}>
             <div>
-              <div style={{ fontSize: '1rem', fontWeight: 700, color: '#ffffff' }}>{activePhoto.title}</div>
-              <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.6)', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ color: '#e2b855', fontWeight: 600 }}>{activePhoto.album}</span>
+              <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#ffffff' }}>{activePhoto.title}</div>
+              <div style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ color: 'var(--accent-gold)', fontWeight: 700 }}>{activePhoto.album}</span>
                 <span>•</span>
                 <span>Captured: {activePhoto.capturedAt}</span>
                 <span>•</span>
-                <span>Gallery: {galleryCode}</span>
+                <span style={{ fontFamily: 'var(--font-mono)' }}>Gallery: {galleryCode}</span>
               </div>
             </div>
 
@@ -1763,7 +1766,7 @@ export const CustomerVerificationView: React.FC<CustomerVerificationProps> = ({
               <button 
                 onClick={() => toggleFavorite(activePhoto.id)}
                 style={{
-                  background: activePhoto.isFavorite ? 'rgba(239, 68, 68, 0.2)' : 'rgba(255,255,255,0.1)',
+                  background: activePhoto.isFavorite ? 'rgba(239, 68, 68, 0.25)' : 'rgba(255,255,255,0.08)',
                   color: activePhoto.isFavorite ? '#ef4444' : '#ffffff',
                   border: '1px solid rgba(255,255,255,0.15)',
                   borderRadius: '50%',
@@ -1773,9 +1776,8 @@ export const CustomerVerificationView: React.FC<CustomerVerificationProps> = ({
                   alignItems: 'center',
                   justifyContent: 'center',
                   cursor: 'pointer',
-                  transition: 'background 0.2s',
                 }}
-                title={activePhoto.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+                title={activePhoto.isFavorite ? 'Remove Favorite' : 'Add to Favorites'}
               >
                 <Heart size={18} fill={activePhoto.isFavorite ? '#ef4444' : 'none'} />
               </button>
@@ -1783,7 +1785,7 @@ export const CustomerVerificationView: React.FC<CustomerVerificationProps> = ({
               <button 
                 onClick={() => handleDownloadPhoto(activePhoto)}
                 style={{
-                  background: 'rgba(255,255,255,0.1)',
+                  background: 'rgba(255,255,255,0.08)',
                   color: '#ffffff',
                   border: '1px solid rgba(255,255,255,0.15)',
                   borderRadius: '50%',
@@ -1793,7 +1795,6 @@ export const CustomerVerificationView: React.FC<CustomerVerificationProps> = ({
                   alignItems: 'center',
                   justifyContent: 'center',
                   cursor: 'pointer',
-                  transition: 'background 0.2s',
                 }}
                 title="Download Photo"
               >
@@ -1803,9 +1804,9 @@ export const CustomerVerificationView: React.FC<CustomerVerificationProps> = ({
               <button 
                 onClick={() => startEditingPhoto(activePhoto)}
                 style={{
-                  background: 'rgba(226, 184, 85, 0.15)',
-                  color: '#e2b855',
-                  border: '1px solid rgba(226, 184, 85, 0.3)',
+                  background: 'rgba(245, 190, 79, 0.15)',
+                  color: 'var(--accent-gold)',
+                  border: '1px solid rgba(245, 190, 79, 0.35)',
                   borderRadius: '50%',
                   width: '40px',
                   height: '40px',
@@ -1813,9 +1814,8 @@ export const CustomerVerificationView: React.FC<CustomerVerificationProps> = ({
                   alignItems: 'center',
                   justifyContent: 'center',
                   cursor: 'pointer',
-                  transition: 'background 0.2s',
                 }}
-                title="Edit Photo Title & Album"
+                title="Edit Details"
               >
                 <Edit3 size={18} />
               </button>
@@ -1833,9 +1833,8 @@ export const CustomerVerificationView: React.FC<CustomerVerificationProps> = ({
                   alignItems: 'center',
                   justifyContent: 'center',
                   cursor: 'pointer',
-                  transition: 'background 0.2s',
                 }}
-                title="Delete Photo from Gallery"
+                title="Delete Photo"
               >
                 <Trash2 size={18} />
               </button>
@@ -1843,7 +1842,7 @@ export const CustomerVerificationView: React.FC<CustomerVerificationProps> = ({
               <button 
                 onClick={() => setActivePhoto(null)}
                 style={{
-                  background: 'rgba(255,255,255,0.1)',
+                  background: 'rgba(255,255,255,0.08)',
                   color: '#ffffff',
                   border: '1px solid rgba(255,255,255,0.15)',
                   borderRadius: '50%',
@@ -1854,7 +1853,7 @@ export const CustomerVerificationView: React.FC<CustomerVerificationProps> = ({
                   justifyContent: 'center',
                   cursor: 'pointer',
                 }}
-                title="Close (Esc)"
+                title="Close"
               >
                 <X size={20} />
               </button>
@@ -1877,15 +1876,15 @@ export const CustomerVerificationView: React.FC<CustomerVerificationProps> = ({
                 maxWidth: '92vw',
                 maxHeight: '82vh',
                 objectFit: 'contain',
-                borderRadius: '12px',
-                boxShadow: '0 24px 70px rgba(0,0,0,0.9), 0 0 30px rgba(226,184,85,0.15)',
+                borderRadius: '14px',
+                boxShadow: '0 24px 80px rgba(0,0,0,0.95), 0 0 40px rgba(245, 190, 79, 0.2)',
               }}
             />
           </div>
         </div>
       )}
 
-      {/* MODAL 4: Real Device Camera Capture Modal */}
+      {/* MODAL 4: Camera Capture Modal */}
       <CameraCaptureModal
         isOpen={showCameraModal}
         eventName={eventDetails?.eventName || galleryCode}
@@ -1898,8 +1897,8 @@ export const CustomerVerificationView: React.FC<CustomerVerificationProps> = ({
         <div style={{
           position: 'fixed',
           inset: 0,
-          background: 'rgba(0,0,0,0.75)',
-          backdropFilter: 'blur(8px)',
+          background: 'rgba(0,0,0,0.85)',
+          backdropFilter: 'blur(10px)',
           zIndex: 400,
           display: 'flex',
           alignItems: 'center',
@@ -1907,25 +1906,26 @@ export const CustomerVerificationView: React.FC<CustomerVerificationProps> = ({
           padding: '20px',
         }}>
           <form onSubmit={savePhotoEdit} style={{
-            background: '#ffffff',
+            background: '#0d111a',
+            border: '1px solid rgba(245,190,79,0.35)',
             borderRadius: '20px',
             padding: '24px',
             maxWidth: '380px',
             width: '100%',
-            color: '#1c1917',
-            boxShadow: '0 20px 50px rgba(0,0,0,0.4)',
+            color: '#f8fafc',
+            boxShadow: '0 25px 60px rgba(0,0,0,0.9)',
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
               <div style={{ fontWeight: 800, fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Edit3 size={18} color="#b88628" /> Edit Photo Details
+                <Edit3 size={18} color="var(--accent-gold)" /> Edit Photo Details
               </div>
-              <button type="button" onClick={() => setEditingPhoto(null)} style={{ background: 'none', border: 'none', color: '#78716c', cursor: 'pointer' }}>
+              <button type="button" onClick={() => setEditingPhoto(null)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}>
                 <X size={18} />
               </button>
             </div>
 
             <div style={{ marginBottom: '14px' }}>
-              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#57534e', textTransform: 'uppercase', marginBottom: '6px' }}>
+              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: 'var(--accent-gold)', textTransform: 'uppercase', marginBottom: '6px', fontFamily: 'var(--font-mono)' }}>
                 Photo Title / Caption
               </label>
               <input
@@ -1933,43 +1933,23 @@ export const CustomerVerificationView: React.FC<CustomerVerificationProps> = ({
                 onChange={e => setEditTitle(e.target.value)}
                 required
                 autoFocus
-                placeholder="e.g. First Dance, Ring Detail"
-                style={{
-                  width: '100%',
-                  padding: '10px 12px',
-                  borderRadius: '10px',
-                  border: '1px solid #d6d3d1',
-                  background: '#fcfbf9',
-                  color: '#1c1917',
-                  fontSize: '0.9rem',
-                  outline: 'none',
-                  boxSizing: 'border-box',
-                }}
+                placeholder="e.g. First Dance, Lens Detail"
+                className="input-field"
               />
             </div>
 
             <div style={{ marginBottom: '20px' }}>
-              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#57534e', textTransform: 'uppercase', marginBottom: '6px' }}>
+              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: 'var(--accent-gold)', textTransform: 'uppercase', marginBottom: '6px', fontFamily: 'var(--font-mono)' }}>
                 Album Category
               </label>
               <select
                 value={editAlbum}
                 onChange={e => setEditAlbum(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '10px 12px',
-                  borderRadius: '10px',
-                  border: '1px solid #d6d3d1',
-                  background: '#fcfbf9',
-                  color: '#1c1917',
-                  fontSize: '0.9rem',
-                  outline: 'none',
-                  boxSizing: 'border-box',
-                  cursor: 'pointer',
-                }}
+                className="input-field"
+                style={{ cursor: 'pointer' }}
               >
                 {['Wedding', 'Ceremony', 'Reception', 'Couple', 'Details', 'Family', 'Party'].map(alb => (
-                  <option key={alb} value={alb}>{alb}</option>
+                  <option key={alb} value={alb} style={{ background: '#0d111a', color: '#fff' }}>{alb}</option>
                 ))}
               </select>
             </div>
@@ -1978,13 +1958,15 @@ export const CustomerVerificationView: React.FC<CustomerVerificationProps> = ({
               <button
                 type="button"
                 onClick={() => setEditingPhoto(null)}
-                style={{ flex: 1, padding: '10px', borderRadius: '10px', border: '1px solid #d6d3d1', background: '#fff', color: '#57534e', fontWeight: 600, cursor: 'pointer' }}
+                className="btn btn-secondary"
+                style={{ flex: 1, padding: '10px' }}
               >
                 Cancel
               </button>
               <button
                 type="submit"
-                style={{ flex: 2, padding: '10px', borderRadius: '10px', border: 'none', background: 'linear-gradient(135deg, #b88628, #8c6720)', color: '#ffffff', fontWeight: 700, cursor: 'pointer' }}
+                className="btn btn-primary"
+                style={{ flex: 2, padding: '10px' }}
               >
                 Save Changes
               </button>
