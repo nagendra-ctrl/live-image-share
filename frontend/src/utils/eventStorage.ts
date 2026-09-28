@@ -197,9 +197,52 @@ export function deleteLocalEvent(token: string): void {
 export function getEventMedia(token: string): EventMedia[] {
   try {
     const raw = localStorage.getItem(`${MEDIA_PREFIX}${token}`);
-    if (!raw) return [];
-    const parsed: EventMedia[] = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
+    const parsed: EventMedia[] = raw ? JSON.parse(raw) : [];
+    const media: EventMedia[] = Array.isArray(parsed) ? parsed : [];
+
+    // Also pull photos from photoStorage if any exist under token or accessCode
+    const events = getLocalEvents();
+    const event = events.find(e => e.token === token || e.accessCode.toUpperCase() === token.toUpperCase());
+    const accessCode = event ? event.accessCode : token;
+
+    const seenIds = new Set(media.map(m => m.id));
+
+    // Check photovault_event_photos_ keys
+    const checkKeys = [
+      `photovault_event_photos_${accessCode.trim().toUpperCase()}`,
+      `photovault_event_photos_${token.trim().toUpperCase()}`,
+    ];
+
+    checkKeys.forEach(k => {
+      const pRaw = localStorage.getItem(k);
+      if (pRaw) {
+        try {
+          const photoList: Array<any> = JSON.parse(pRaw);
+          if (Array.isArray(photoList)) {
+            photoList.forEach(p => {
+              if (p && p.id && !seenIds.has(p.id)) {
+                media.push({
+                  id: p.id,
+                  eventToken: event ? event.token : token,
+                  src: p.src,
+                  type: 'photo',
+                  title: p.title || 'Photo',
+                  album: p.album || 'Photos',
+                  mimeType: 'image/jpeg',
+                  capturedAt: p.capturedAt || '',
+                  timestamp: p.timestamp || Date.now(),
+                  isFavorite: p.isFavorite ?? false,
+                  allowDownload: event ? event.allowDownload : true,
+                });
+                seenIds.add(p.id);
+              }
+            });
+          }
+        } catch { /* ignore */ }
+      }
+    });
+
+    return media;
   } catch {
     return [];
   }
@@ -213,7 +256,7 @@ export function saveEventMedia(token: string, media: Omit<EventMedia, 'id' | 'ev
     eventToken: token,
     timestamp: Date.now(),
   };
-  const updated = [newMedia, ...existing];
+  const updated = [newMedia, ...existing.filter(m => m.id !== newMedia.id)];
   try {
     localStorage.setItem(`${MEDIA_PREFIX}${token}`, JSON.stringify(updated));
   } catch {
@@ -221,12 +264,56 @@ export function saveEventMedia(token: string, media: Omit<EventMedia, 'id' | 'ev
     const trimmed = [newMedia, ...existing.slice(0, 20)];
     localStorage.setItem(`${MEDIA_PREFIX}${token}`, JSON.stringify(trimmed));
   }
+
+  // Also sync to photoStorage keys
+  try {
+    const events = getLocalEvents();
+    const event = events.find(e => e.token === token || e.accessCode.toUpperCase() === token.toUpperCase());
+    if (event) {
+      const pKey = `photovault_event_photos_${event.accessCode.toUpperCase()}`;
+      const pRaw = localStorage.getItem(pKey);
+      const pList: Array<any> = pRaw ? JSON.parse(pRaw) : [];
+      const newStoredPhoto = {
+        id: newMedia.id,
+        eventCode: event.accessCode,
+        src: newMedia.src,
+        title: newMedia.title,
+        album: newMedia.album || 'Photos',
+        capturedAt: newMedia.capturedAt || '',
+        timestamp: newMedia.timestamp,
+        isFavorite: newMedia.isFavorite ?? false,
+      };
+      const pUpdated = [newStoredPhoto, ...pList.filter(p => p.id !== newMedia.id)];
+      localStorage.setItem(pKey, JSON.stringify(pUpdated));
+      localStorage.setItem(`photovault_event_photos_${event.token.toUpperCase()}`, JSON.stringify(pUpdated));
+    }
+  } catch { /* ignore */ }
+
   return newMedia;
 }
 
 export function deleteEventMedia(token: string, mediaId: string): void {
   const existing = getEventMedia(token).filter(m => m.id !== mediaId);
   localStorage.setItem(`${MEDIA_PREFIX}${token}`, JSON.stringify(existing));
+
+  try {
+    const events = getLocalEvents();
+    const event = events.find(e => e.token === token || e.accessCode.toUpperCase() === token.toUpperCase());
+    if (event) {
+      const pKey = `photovault_event_photos_${event.accessCode.toUpperCase()}`;
+      const pRaw = localStorage.getItem(pKey);
+      if (pRaw) {
+        const pList: Array<any> = JSON.parse(pRaw);
+        localStorage.setItem(pKey, JSON.stringify(pList.filter(p => p.id !== mediaId)));
+      }
+      const tKey = `photovault_event_photos_${event.token.toUpperCase()}`;
+      const tRaw = localStorage.getItem(tKey);
+      if (tRaw) {
+        const tList: Array<any> = JSON.parse(tRaw);
+        localStorage.setItem(tKey, JSON.stringify(tList.filter(p => p.id !== mediaId)));
+      }
+    }
+  } catch { /* ignore */ }
 }
 
 export function updateEventMedia(token: string, mediaId: string, updates: Partial<EventMedia>): boolean {
@@ -239,7 +326,6 @@ export function updateEventMedia(token: string, mediaId: string, updates: Partia
     return false;
   }
 }
-
 
 export function toggleMediaFavorite(token: string, mediaId: string): boolean {
   const existing = getEventMedia(token);
