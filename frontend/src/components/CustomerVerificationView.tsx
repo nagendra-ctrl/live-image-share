@@ -165,9 +165,20 @@ export const CustomerVerificationView: React.FC<CustomerVerificationProps> = ({
     }
   }, [galleryCode]);
 
+  // Sync cloud events on mount
+  useEffect(() => {
+    import('../utils/cloudSync').then(m => m.syncAllData()).then(() => {
+      // Re-load current event data in case new photos/event arrived
+      if (galleryCode) loadCurrentEventData(galleryCode);
+    }).catch(() => {});
+  }, []);
+
   // Home search: fetch and filter events on query change
   const performHomeSearch = useCallback(async (q: string) => {
     const trimmed = q.trim();
+
+    // Trigger quick background sync
+    import('../utils/cloudSync').then(m => m.syncAllData()).catch(() => {});
 
     // Build local events array from this browser's localStorage
     const localMapped = getLocalEvents().map(le => ({
@@ -245,7 +256,8 @@ export const CustomerVerificationView: React.FC<CustomerVerificationProps> = ({
     } finally {
       setHomeSearchLoading(false);
     }
-  }, []);
+  }, [galleryCode]);
+
 
 
   useEffect(() => {

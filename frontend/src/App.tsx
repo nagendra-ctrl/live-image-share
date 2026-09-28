@@ -50,7 +50,17 @@ export const App: React.FC = () => {
   useEffect(() => {
     checkHealth();
     const interval = setInterval(checkHealth, 20000);
-    return () => clearInterval(interval);
+
+    // Initial and periodic cross-browser cloud sync (Chrome <-> Brave <-> Mobile)
+    import('./utils/cloudSync').then(m => m.syncAllData()).catch(() => {});
+    const syncInterval = setInterval(() => {
+      import('./utils/cloudSync').then(m => m.syncAllData()).catch(() => {});
+    }, 10000);
+
+    return () => {
+      clearInterval(interval);
+      clearInterval(syncInterval);
+    };
   }, []);
 
   const handleScanSuccess = (token: string) => {

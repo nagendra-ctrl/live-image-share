@@ -162,6 +162,9 @@ export function saveLocalEvent(event: LocalEvent): void {
   const tokenIndex = getTokenIndex();
   tokenIndex[event.token] = event.accessCode;
   localStorage.setItem(TOKEN_INDEX_KEY, JSON.stringify(tokenIndex));
+
+  // Background cloud sync
+  import('./cloudSync').then(m => m.syncAllData()).catch(() => {});
 }
 
 export function getLocalEventByToken(token: string): LocalEvent | null {
@@ -191,6 +194,9 @@ export function deleteLocalEvent(token: string): void {
   try {
     localStorage.removeItem(`${MEDIA_PREFIX}${token}`);
   } catch { /* ignore */ }
+
+  // Background cloud sync
+  import('./cloudSync').then(m => m.syncAllData()).catch(() => {});
 }
 
 // ─── Media ──────────────────────────────────────────────────────────────────
@@ -289,6 +295,9 @@ export function saveEventMedia(token: string, media: Omit<EventMedia, 'id' | 'ev
     }
   } catch { /* ignore */ }
 
+  // Background cloud sync
+  import('./cloudSync').then(m => m.syncAllData()).catch(() => {});
+
   return newMedia;
 }
 
@@ -314,6 +323,9 @@ export function deleteEventMedia(token: string, mediaId: string): void {
       }
     }
   } catch { /* ignore */ }
+
+  // Background cloud sync
+  import('./cloudSync').then(m => m.syncAllData()).catch(() => {});
 }
 
 export function updateEventMedia(token: string, mediaId: string, updates: Partial<EventMedia>): boolean {

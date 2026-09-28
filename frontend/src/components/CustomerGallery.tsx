@@ -34,12 +34,22 @@ export const CustomerGallery: React.FC<Props> = ({ token, onBack, onOpenScanner 
   };
 
   // Load event and its media
-  const loadData = useCallback(() => {
+  const loadData = useCallback(async () => {
     setLoading(true);
     let evt = getLocalEventByToken(token);
     if (!evt) {
       evt = getLocalEventByCode(token);
     }
+
+    // If not found in current browser's localStorage, pull from cloud sync!
+    if (!evt) {
+      try {
+        const { syncAllData } = await import('../utils/cloudSync');
+        await syncAllData();
+        evt = getLocalEventByToken(token) || getLocalEventByCode(token);
+      } catch { /* ignore */ }
+    }
+
     setEvent(evt);
 
     if (evt) {
