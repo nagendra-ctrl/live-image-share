@@ -350,27 +350,45 @@ export const CustomerGallery: React.FC<Props> = ({ token, onBack, onOpenScanner 
         margin: '0 auto',
       }}>
         <div style={{
-          background: 'linear-gradient(145deg, rgba(226,184,85,0.08) 0%, rgba(255,255,255,0.02) 100%)',
-          border: '1px solid rgba(226, 184, 85, 0.25)',
+          background: 'linear-gradient(145deg, rgba(20, 26, 38, 0.92) 0%, rgba(7, 9, 14, 0.98) 100%)',
+          border: '1px solid rgba(245, 190, 79, 0.28)',
           borderRadius: '24px',
-          padding: '32px 28px',
+          padding: '36px 32px',
           position: 'relative',
           overflow: 'hidden',
-          boxShadow: '0 20px 50px rgba(0,0,0,0.5)',
+          boxShadow: '0 25px 60px -15px rgba(0,0,0,0.8), 0 0 35px rgba(245, 190, 79, 0.08)',
         }}>
-          {/* Subtle gold glow in corner */}
+          {/* Lens Flare & Optical Glow Background */}
           <div style={{
             position: 'absolute',
-            top: '-60px',
-            right: '-60px',
-            width: '180px',
-            height: '180px',
-            background: 'radial-gradient(circle, rgba(226,184,85,0.18) 0%, transparent 70%)',
+            top: '-80px',
+            right: '-80px',
+            width: '280px',
+            height: '280px',
+            background: 'radial-gradient(circle, rgba(245, 190, 79, 0.16) 0%, rgba(56, 189, 248, 0.06) 40%, transparent 70%)',
             pointerEvents: 'none',
           }} />
 
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'rgba(226,184,85,0.15)', border: '1px solid rgba(226,184,85,0.3)', borderRadius: '999px', padding: '3px 12px', fontSize: '0.72rem', fontWeight: 700, color: '#e2b855', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '12px' }}>
-            <Sparkles size={11} /> {event.eventType || 'Event'} Gallery
+          {/* Camera Viewfinder Crosshair in corner */}
+          <div style={{
+            position: 'absolute',
+            top: '20px',
+            right: '24px',
+            fontFamily: 'var(--font-mono)',
+            fontSize: '0.72rem',
+            color: 'rgba(245, 190, 79, 0.6)',
+            letterSpacing: '0.1em',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+          }}>
+            <span>[ + ] 50mm f/1.4</span>
+            <span style={{ color: 'rgba(255,255,255,0.3)' }}>|</span>
+            <span>RAW HDR</span>
+          </div>
+
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'rgba(245, 190, 79, 0.12)', border: '1px solid rgba(245, 190, 79, 0.35)', borderRadius: '999px', padding: '4px 14px', fontSize: '0.72rem', fontWeight: 800, color: 'var(--accent-gold)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '14px', fontFamily: 'var(--font-mono)' }}>
+            <Sparkles size={12} /> {event.eventType || 'Event'} Gallery • Precision Optics
           </div>
 
           <h1 style={{

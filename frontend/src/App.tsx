@@ -100,34 +100,51 @@ export const App: React.FC = () => {
           gap: '12px',
         }}>
           {/* Brand */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <div style={{
-              width: '36px',
-              height: '36px',
-              borderRadius: '8px',
-              background: 'linear-gradient(135deg, #e2b855 0%, #b88628 100%)',
+              width: '40px',
+              height: '40px',
+              borderRadius: '10px',
+              background: 'linear-gradient(135deg, #1e2535 0%, #0c0f17 100%)',
+              border: '1px solid rgba(245, 190, 79, 0.4)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              color: '#08090c',
-              boxShadow: '0 0 14px rgba(226, 184, 85, 0.3)',
+              color: 'var(--accent-gold)',
+              boxShadow: '0 0 18px rgba(245, 190, 79, 0.25), inset 0 0 10px rgba(0,0,0,0.8)',
+              position: 'relative',
+              overflow: 'hidden',
             }}>
-              <Camera size={20} strokeWidth={2.4} />
+              <div style={{
+                position: 'absolute',
+                inset: 0,
+                backgroundImage: 'radial-gradient(circle at center, rgba(245, 190, 79, 0.2) 0%, transparent 70%)',
+              }} />
+              <Camera size={22} strokeWidth={2.2} style={{ position: 'relative', zIndex: 1 }} />
             </div>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <span style={{
                   fontFamily: 'var(--font-heading)',
-                  fontSize: '1.25rem',
-                  fontWeight: 800,
-                  letterSpacing: '-0.02em',
+                  fontSize: '1.3rem',
+                  fontWeight: 900,
+                  letterSpacing: '-0.03em',
                   color: '#ffffff',
                 }}>
                   Photo<span style={{ color: 'var(--accent-gold)' }}>Vault</span>
                 </span>
-                <span className="badge badge-gold" style={{ fontSize: '0.65rem', padding: '2px 8px' }}>
-                  WedGallery
+                <span className="badge badge-gold" style={{ fontSize: '0.62rem', padding: '2px 8px' }}>
+                  F/1.4 PRO
                 </span>
+              </div>
+              <div style={{
+                fontFamily: 'var(--font-mono)',
+                fontSize: '0.68rem',
+                color: 'var(--text-muted)',
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+              }}>
+                Precision Optics • Live Image Share
               </div>
             </div>
           </div>
