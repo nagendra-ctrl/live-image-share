@@ -47,6 +47,8 @@ public class EventServiceImpl implements EventService {
         event.setEventDate(request.eventDate());
         event.setLocation(request.location());
         event.setDescription(request.description());
+        event.setInstagramHandle(request.instagramHandle());
+        event.setWhatsappNumber(request.whatsappNumber());
         
         // Default cover photo if none provided
         String cover = request.coverImage() != null && !request.coverImage().isBlank() 
@@ -106,6 +108,8 @@ public class EventServiceImpl implements EventService {
         if (request.location() != null) event.setLocation(request.location());
         if (request.description() != null) event.setDescription(request.description());
         if (request.coverImage() != null) event.setCoverImage(request.coverImage());
+        if (request.instagramHandle() != null) event.setInstagramHandle(request.instagramHandle());
+        if (request.whatsappNumber() != null) event.setWhatsappNumber(request.whatsappNumber());
         if (request.isActive() != null) event.setIsActive(request.isActive());
 
         Event updated = eventRepository.save(event);

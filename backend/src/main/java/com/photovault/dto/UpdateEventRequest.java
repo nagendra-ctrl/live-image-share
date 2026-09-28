@@ -13,5 +13,7 @@ public record UpdateEventRequest(
     String location,
     String description,
     String coverImage,
+    String instagramHandle,
+    String whatsappNumber,
     Boolean isActive
 ) {}

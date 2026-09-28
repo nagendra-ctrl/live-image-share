@@ -26,5 +26,7 @@ public record CreateEventRequest(
 
     String location,
     String description,
-    String coverImage
+    String coverImage,
+    String instagramHandle,
+    String whatsappNumber
 ) {}

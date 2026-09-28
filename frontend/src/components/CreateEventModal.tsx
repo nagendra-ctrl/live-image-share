@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Calendar, MapPin, User, Mail, Phone, FileText, Image, Sparkles } from 'lucide-react';
+import { X, Calendar, MapPin, User, Mail, Phone, FileText, Image, Sparkles, MessageCircle } from 'lucide-react';
+import { InstagramIcon } from './SocialIcons';
 import { createEvent } from '../services/api';
 import type { CreateEventData, EventType } from '../types';
 
@@ -29,6 +30,8 @@ const INITIAL_FORM: CreateEventData = {
   location: '',
   description: '',
   coverImage: '',
+  instagramHandle: '',
+  whatsappNumber: '',
 };
 
 export const CreateEventModal: React.FC<CreateEventModalProps> = ({ isOpen, onClose, onSuccess }) => {
@@ -79,6 +82,8 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({ isOpen, onCl
         location: form.location?.trim() || undefined,
         description: form.description?.trim() || undefined,
         coverImage: form.coverImage?.trim() || undefined,
+        instagramHandle: form.instagramHandle?.trim() || undefined,
+        whatsappNumber: form.whatsappNumber?.trim() || undefined,
       });
       setSuccess(true);
       setTimeout(() => {
@@ -369,6 +374,37 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({ isOpen, onCl
               onBlur={e => { e.target.style.borderColor = 'rgba(255,255,255,0.1)'; e.target.style.boxShadow = 'none'; }}
             />
           </Field>
+
+          {/* Social Branding & Contact: Instagram & WhatsApp */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+            <Field label="Studio Instagram" icon={<InstagramIcon size={13} />}>
+              <input
+                id="ce-instagramHandle"
+                name="instagramHandle"
+                type="text"
+                placeholder="@yourphotostudio"
+                value={form.instagramHandle || ''}
+                onChange={handleChange}
+                style={inputStyle}
+                onFocus={e => { e.target.style.borderColor = 'rgba(226,184,85,0.5)'; e.target.style.boxShadow = '0 0 0 3px rgba(226,184,85,0.08)'; }}
+                onBlur={e => { e.target.style.borderColor = 'rgba(255,255,255,0.1)'; e.target.style.boxShadow = 'none'; }}
+              />
+            </Field>
+
+            <Field label="Studio WhatsApp" icon={<MessageCircle size={13} />}>
+              <input
+                id="ce-whatsappNumber"
+                name="whatsappNumber"
+                type="tel"
+                placeholder="+1 555 123 4567"
+                value={form.whatsappNumber || ''}
+                onChange={handleChange}
+                style={inputStyle}
+                onFocus={e => { e.target.style.borderColor = 'rgba(226,184,85,0.5)'; e.target.style.boxShadow = '0 0 0 3px rgba(226,184,85,0.08)'; }}
+                onBlur={e => { e.target.style.borderColor = 'rgba(255,255,255,0.1)'; e.target.style.boxShadow = 'none'; }}
+              />
+            </Field>
+          </div>
 
           {/* Actions */}
           <div style={{

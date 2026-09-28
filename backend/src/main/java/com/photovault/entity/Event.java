@@ -62,6 +62,12 @@ public class Event {
     @Column(name = "photo_count", nullable = false)
     private Integer photoCount = 0;
 
+    @Column(name = "instagram_handle", length = 100)
+    private String instagramHandle;
+
+    @Column(name = "whatsapp_number", length = 50)
+    private String whatsappNumber;
+
     @OneToMany(mappedBy = "event", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     private List<Album> albums = new ArrayList<>();
 
@@ -233,6 +239,22 @@ public class Event {
 
     public void setCreatedAt(Instant createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public String getInstagramHandle() {
+        return instagramHandle;
+    }
+
+    public void setInstagramHandle(String instagramHandle) {
+        this.instagramHandle = instagramHandle;
+    }
+
+    public String getWhatsappNumber() {
+        return whatsappNumber;
+    }
+
+    public void setWhatsappNumber(String whatsappNumber) {
+        this.whatsappNumber = whatsappNumber;
     }
 
     public Instant getUpdatedAt() {

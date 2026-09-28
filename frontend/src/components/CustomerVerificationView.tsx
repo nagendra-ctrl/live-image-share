@@ -147,6 +147,8 @@ export const CustomerVerificationView: React.FC<CustomerVerificationProps> = ({
         eventDate: local.eventDate,
         location: local.location,
         coverImage: local.coverImage,
+        instagramHandle: local.instagramHandle,
+        whatsappNumber: local.whatsappNumber,
       } as unknown as PhotoVaultEvent);
     }
 

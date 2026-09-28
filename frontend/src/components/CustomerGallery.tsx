@@ -2,8 +2,10 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   ArrowLeft, Download, Share2, Heart, Play, Film, Image as ImageIcon,
   X, ChevronLeft, ChevronRight, Sparkles, Calendar, MapPin,
-  Maximize2, ZoomIn, ZoomOut, AlertCircle, QrCode, RefreshCw, Search
+  Maximize2, ZoomIn, ZoomOut, AlertCircle, QrCode, RefreshCw, Search,
+  MessageCircle
 } from 'lucide-react';
+import { InstagramIcon } from './SocialIcons';
 import {
   getLocalEventByToken, getLocalEventByCode, getEventMedia,
   toggleMediaFavorite, getGalleryUrl, type LocalEvent, type EventMedia
@@ -140,6 +142,27 @@ export const CustomerGallery: React.FC<Props> = ({ token, onBack, onOpenScanner 
       navigator.clipboard.writeText(url);
       showToast('Gallery link copied to clipboard!');
     }
+  };
+
+  // Share gallery via WhatsApp
+  const handleWhatsAppShare = () => {
+    if (!event) return;
+    const url = getGalleryUrl(event.token);
+    const text = encodeURIComponent(`📸 *${event.eventName}*\nView the high-resolution event gallery on PhotoVault:\n${url}`);
+    window.open(`https://api.whatsapp.com/send?text=${text}`, '_blank');
+  };
+
+  const getWhatsAppChatUrl = (phone?: string, eventName?: string) => {
+    if (!phone) return '#';
+    const cleanNumber = phone.replace(/[^0-9]/g, '');
+    const text = encodeURIComponent(`Hi! I am viewing photos from "${eventName || 'Event'}" on PhotoVault.`);
+    return `https://wa.me/${cleanNumber}?text=${text}`;
+  };
+
+  const getInstagramUrl = (handle?: string) => {
+    if (!handle) return '#';
+    const cleanHandle = handle.replace(/^@/, '').trim();
+    return `https://instagram.com/${cleanHandle}`;
   };
 
   // Keyboard navigation for lightbox
@@ -333,6 +356,27 @@ export const CustomerGallery: React.FC<Props> = ({ token, onBack, onOpenScanner 
               </button>
             )}
             <button
+              id="top-nav-whatsapp-share"
+              onClick={handleWhatsAppShare}
+              title="Share gallery via WhatsApp"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                background: 'linear-gradient(135deg, #25d366, #128c7e)',
+                border: 'none',
+                borderRadius: '10px',
+                padding: '7px 14px',
+                color: '#ffffff',
+                fontSize: '0.82rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+                boxShadow: '0 4px 12px rgba(37, 211, 102, 0.25)',
+              }}
+            >
+              <MessageCircle size={14} /> WhatsApp Share
+            </button>
+            <button
               onClick={handleShareGallery}
               style={{
                 display: 'inline-flex',
@@ -436,6 +480,63 @@ export const CustomerGallery: React.FC<Props> = ({ token, onBack, onOpenScanner 
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <span>👤 {event.customerName}</span>
             </div>
+
+            {/* Social & Contact Links */}
+            {event.instagramHandle && (
+              <a
+                href={getInstagramUrl(event.instagramHandle)}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={`Visit ${event.instagramHandle} on Instagram`}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  background: 'linear-gradient(135deg, rgba(225,48,108,0.18), rgba(253,29,29,0.18))',
+                  border: '1px solid rgba(225,48,108,0.4)',
+                  padding: '4px 12px',
+                  borderRadius: '20px',
+                  color: '#ff7eb3',
+                  fontSize: '0.82rem',
+                  fontWeight: 600,
+                  textDecoration: 'none',
+                  transition: 'transform 0.2s, box-shadow 0.2s',
+                }}
+                onMouseEnter={e => (e.currentTarget.style.transform = 'translateY(-2px)')}
+                onMouseLeave={e => (e.currentTarget.style.transform = 'translateY(0)')}
+              >
+                <InstagramIcon size={14} color="#ff7eb3" />
+                <span>{event.instagramHandle.startsWith('@') ? event.instagramHandle : `@${event.instagramHandle}`}</span>
+              </a>
+            )}
+
+            {event.whatsappNumber && (
+              <a
+                href={getWhatsAppChatUrl(event.whatsappNumber, event.eventName)}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={`Chat with studio on WhatsApp (${event.whatsappNumber})`}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  background: 'rgba(37, 211, 102, 0.15)',
+                  border: '1px solid rgba(37, 211, 102, 0.4)',
+                  padding: '4px 12px',
+                  borderRadius: '20px',
+                  color: '#25d366',
+                  fontSize: '0.82rem',
+                  fontWeight: 600,
+                  textDecoration: 'none',
+                  transition: 'transform 0.2s, box-shadow 0.2s',
+                }}
+                onMouseEnter={e => (e.currentTarget.style.transform = 'translateY(-2px)')}
+                onMouseLeave={e => (e.currentTarget.style.transform = 'translateY(0)')}
+              >
+                <MessageCircle size={14} color="#25d366" />
+                <span>Chat Photographer</span>
+              </a>
+            )}
           </div>
 
           {/* Quick counts & permissions badge */}
@@ -452,7 +553,7 @@ export const CustomerGallery: React.FC<Props> = ({ token, onBack, onOpenScanner 
               </span>
             </div>
 
-            <div style={{ display: 'flex', gap: '8px' }}>
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
               <button
                 id="gallery-search-toggle"
                 onClick={() => setShowSearch(s => !s)}
@@ -473,6 +574,26 @@ export const CustomerGallery: React.FC<Props> = ({ token, onBack, onOpenScanner 
                 }}
               >
                 <Search size={14} /> Search
+              </button>
+              <button
+                onClick={handleWhatsAppShare}
+                title="Share this gallery on WhatsApp"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  background: 'rgba(37, 211, 102, 0.12)',
+                  border: '1px solid rgba(37, 211, 102, 0.35)',
+                  borderRadius: '10px',
+                  padding: '8px 14px',
+                  color: '#25d366',
+                  fontSize: '0.82rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                }}
+              >
+                <MessageCircle size={14} /> WhatsApp Share
               </button>
               <button
                 onClick={handleShareGallery}

@@ -45,6 +45,8 @@ CREATE TABLE IF NOT EXISTS events (
     event_date DATE NOT NULL,
     event_location VARCHAR(255),
     cover_photo_path VARCHAR(500),
+    instagram_handle VARCHAR(100),
+    whatsapp_number VARCHAR(50),
     access_code VARCHAR(50) NOT NULL UNIQUE, -- e.g., 'WED-2026-X8K9' or 'PHOTO-2026-ABCD'
     pin_code VARCHAR(20),
     is_active BOOLEAN NOT NULL DEFAULT TRUE,

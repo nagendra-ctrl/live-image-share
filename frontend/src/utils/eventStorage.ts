@@ -31,6 +31,8 @@ export interface LocalEvent {
   location?: string;
   description?: string;
   coverImage?: string;
+  instagramHandle?: string;
+  whatsappNumber?: string;
   createdAt: string;
   allowDownload: boolean;
 }
@@ -62,6 +64,8 @@ function seedInitialDataIfEmpty(): LocalEvent[] {
     location: 'Villa Cetinale, Tuscany',
     description: 'Private high-resolution photo & video gallery for family and friends.',
     coverImage: '/wedding_couple_hero.jpg',
+    instagramHandle: '@photovault_official',
+    whatsappNumber: '+15552345678',
     createdAt: new Date().toISOString(),
     allowDownload: true,
   };

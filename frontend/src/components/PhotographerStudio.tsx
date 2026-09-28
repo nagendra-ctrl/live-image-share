@@ -2,8 +2,9 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Camera, Plus, QrCode, Download, Share2, Copy, Check, X, Upload,
   Trash2, Eye, ToggleLeft, ToggleRight, Sparkles, ChevronRight, Film,
-  Search, Edit3, Wifi, Globe, CheckCircle
+  Search, Edit3, Wifi, Globe, CheckCircle, MessageCircle
 } from 'lucide-react';
+import { InstagramIcon } from './SocialIcons';
 import QRCode from 'qrcode';
 import {
   getLocalEvents, saveLocalEvent, deleteLocalEvent,
@@ -243,6 +244,16 @@ export const PhotographerStudio: React.FC<Props> = ({ onViewGallery }) => {
                           <span>📅 {event.eventDate}</span>
                           {event.location && <span>📍 {event.location}</span>}
                           <span>👤 {event.customerName}</span>
+                          {event.instagramHandle && (
+                            <span style={{ color: '#ff7eb3', display: 'inline-flex', alignItems: 'center', gap: '4px', background: 'rgba(225,48,108,0.1)', border: '1px solid rgba(225,48,108,0.25)', padding: '1px 7px', borderRadius: '6px', fontSize: '0.74rem' }}>
+                              <InstagramIcon size={11} /> {event.instagramHandle}
+                            </span>
+                          )}
+                          {event.whatsappNumber && (
+                            <span style={{ color: '#25d366', display: 'inline-flex', alignItems: 'center', gap: '4px', background: 'rgba(37,211,102,0.1)', border: '1px solid rgba(37,211,102,0.25)', padding: '1px 7px', borderRadius: '6px', fontSize: '0.74rem' }}>
+                              <MessageCircle size={11} /> {event.whatsappNumber}
+                            </span>
+                          )}
                           <span style={{ color: '#38bdf8' }}>📸 {count.photos} photos</span>
                           {count.videos > 0 && <span style={{ color: '#c084fc' }}>🎬 {count.videos} videos</span>}
                         </div>
@@ -519,7 +530,17 @@ const MediaUploadPanel: React.FC<{ event: LocalEvent; onUploaded: () => void }> 
 
 // ─── Create Event Modal ──────────────────────────────────────────────────────
 const CreateEventModal: React.FC<{ onClose: () => void; onCreated: (e: LocalEvent) => void }> = ({ onClose, onCreated }) => {
-  const [form, setForm] = useState({ eventName: '', eventType: 'WEDDING', customerName: '', eventDate: '', location: '', description: '', allowDownload: true });
+  const [form, setForm] = useState({
+    eventName: '',
+    eventType: 'WEDDING',
+    customerName: '',
+    eventDate: '',
+    location: '',
+    description: '',
+    instagramHandle: '',
+    whatsappNumber: '',
+    allowDownload: true,
+  });
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -529,7 +550,20 @@ const CreateEventModal: React.FC<{ onClose: () => void; onCreated: (e: LocalEven
     const token = generateSecureToken();
     const accessCode = `EVT-${Date.now().toString(36).toUpperCase().slice(-6)}`;
     setTimeout(() => {
-      onCreated({ token, accessCode, eventName: form.eventName.trim(), eventType: form.eventType, customerName: form.customerName.trim(), eventDate: form.eventDate, location: form.location.trim(), description: form.description.trim(), allowDownload: form.allowDownload, createdAt: new Date().toISOString() });
+      onCreated({
+        token,
+        accessCode,
+        eventName: form.eventName.trim(),
+        eventType: form.eventType,
+        customerName: form.customerName.trim(),
+        eventDate: form.eventDate,
+        location: form.location.trim(),
+        description: form.description.trim(),
+        instagramHandle: form.instagramHandle.trim() || undefined,
+        whatsappNumber: form.whatsappNumber.trim() || undefined,
+        allowDownload: form.allowDownload,
+        createdAt: new Date().toISOString()
+      });
     }, 300);
   };
 
@@ -570,6 +604,14 @@ const CreateEventModal: React.FC<{ onClose: () => void; onCreated: (e: LocalEven
           <CField label="Venue / Location">
             <input value={form.location} onChange={e => setForm(p => ({ ...p, location: e.target.value }))} placeholder="e.g. Villa Cetinale, Tuscany" style={cInput} />
           </CField>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            <CField label="Studio Instagram">
+              <input value={form.instagramHandle} onChange={e => setForm(p => ({ ...p, instagramHandle: e.target.value }))} placeholder="@yourstudio" style={cInput} />
+            </CField>
+            <CField label="Studio WhatsApp">
+              <input value={form.whatsappNumber} onChange={e => setForm(p => ({ ...p, whatsappNumber: e.target.value }))} placeholder="+1 555 123 4567" style={cInput} />
+            </CField>
+          </div>
 
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px', padding: '12px 14px' }}>
             <div>
@@ -602,6 +644,8 @@ const EditEventModal: React.FC<{ event: LocalEvent; onClose: () => void; onSaved
     eventDate: event.eventDate,
     location: event.location || '',
     description: event.description || '',
+    instagramHandle: event.instagramHandle || '',
+    whatsappNumber: event.whatsappNumber || '',
     allowDownload: event.allowDownload,
   });
 
@@ -616,6 +660,8 @@ const EditEventModal: React.FC<{ event: LocalEvent; onClose: () => void; onSaved
       eventDate: form.eventDate,
       location: form.location.trim(),
       description: form.description.trim(),
+      instagramHandle: form.instagramHandle.trim() || undefined,
+      whatsappNumber: form.whatsappNumber.trim() || undefined,
       allowDownload: form.allowDownload,
     });
   };
@@ -657,6 +703,14 @@ const EditEventModal: React.FC<{ event: LocalEvent; onClose: () => void; onSaved
           <CField label="Venue / Location">
             <input value={form.location} onChange={e => setForm(p => ({ ...p, location: e.target.value }))} style={cInput} />
           </CField>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            <CField label="Studio Instagram">
+              <input value={form.instagramHandle} onChange={e => setForm(p => ({ ...p, instagramHandle: e.target.value }))} placeholder="@yourstudio" style={cInput} />
+            </CField>
+            <CField label="Studio WhatsApp">
+              <input value={form.whatsappNumber} onChange={e => setForm(p => ({ ...p, whatsappNumber: e.target.value }))} placeholder="+1 555 123 4567" style={cInput} />
+            </CField>
+          </div>
 
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px', padding: '12px 14px' }}>
             <div>

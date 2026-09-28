@@ -55,6 +55,8 @@ export interface PhotoVaultEvent {
   description?: string;
   coverImage?: string;
   accessCode: string;
+  instagramHandle?: string;
+  whatsappNumber?: string;
   isActive: boolean;
   viewCount: number;
   photoCount: number;
@@ -74,6 +76,8 @@ export interface CreateEventData {
   location?: string;
   description?: string;
   coverImage?: string;
+  instagramHandle?: string;
+  whatsappNumber?: string;
 }
 
 export interface Photo {

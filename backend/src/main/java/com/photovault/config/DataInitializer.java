@@ -41,7 +41,9 @@ public class DataInitializer implements CommandLineRunner {
                 LocalDate.of(2026, 9, 15),
                 "Villa Cetinale, Tuscany, Italy",
                 "Intimate luxury Italian destination wedding with vineyard portraits and courtyard banquet.",
-                "/wedding_couple_hero.jpg"
+                "/wedding_couple_hero.jpg",
+                "@photovault_official",
+                "+15552345678"
             );
             var res1 = eventService.createEvent(event1);
             // Ensure exact accessCode matching the reference screenshot
@@ -60,7 +62,9 @@ public class DataInitializer implements CommandLineRunner {
                 LocalDate.of(2026, 12, 22),
                 "The Leela Palace, Udaipur",
                 "Royal heritage reception celebration with grand floral setup and live orchestral performances.",
-                "/wedding_reception_dinner.jpg"
+                "/wedding_reception_dinner.jpg",
+                "@verma_kapoor_weddings",
+                "+919876543210"
             );
             var res2 = eventService.createEvent(event2);
             eventRepository.findById(res2.id()).ifPresent(e -> {
