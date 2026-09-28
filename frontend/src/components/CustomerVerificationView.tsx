@@ -28,6 +28,7 @@ import {
   toggleEventPhotoFavorite,
   updateEventPhoto
 } from '../utils/photoStorage';
+import { getLocalEvents } from '../utils/eventStorage';
 import { CameraCaptureModal } from './CameraCaptureModal';
 import type { PhotoVaultEvent } from '../types';
 
@@ -134,9 +135,28 @@ export const CustomerVerificationView: React.FC<CustomerVerificationProps> = ({
     const currentPhotos = getEventPhotos(code);
     setPhotos(currentPhotos);
 
+    // Look up local event first
+    const local = getLocalEvents().find(le => le.accessCode.toUpperCase() === code.trim().toUpperCase() || le.token === code.trim());
+    if (local) {
+      setEventDetails({
+        id: local.token,
+        eventName: local.eventName,
+        customerName: local.customerName,
+        accessCode: local.accessCode,
+        eventType: local.eventType as any,
+        eventDate: local.eventDate,
+        location: local.location,
+        coverImage: local.coverImage,
+      } as unknown as PhotoVaultEvent);
+    }
+
     fetchEventByCode(code)
-      .then(data => setEventDetails(data))
-      .catch(() => setEventDetails(null));
+      .then(data => {
+        if (data) setEventDetails(data);
+      })
+      .catch(() => {
+        // Keep local if already set
+      });
   };
 
   useEffect(() => {
@@ -148,17 +168,55 @@ export const CustomerVerificationView: React.FC<CustomerVerificationProps> = ({
   // Home search: fetch and filter events on query change
   const performHomeSearch = useCallback(async (q: string) => {
     if (!q.trim()) {
-      setHomeSearchResults([]);
+      // Show default available events on empty focus
+      const localEvents = getLocalEvents().map(le => ({
+        id: le.token,
+        eventName: le.eventName,
+        customerName: le.customerName,
+        accessCode: le.accessCode,
+        eventType: le.eventType as any,
+        eventDate: le.eventDate,
+        location: le.location,
+        coverImage: le.coverImage,
+      })) as unknown as PhotoVaultEvent[];
+      setHomeSearchResults(localEvents);
       return;
     }
     setHomeSearchLoading(true);
     try {
-      const all = await fetchEvents();
-      const lower = q.toLowerCase();
+      const localEvents = getLocalEvents().map(le => ({
+        id: le.token,
+        eventName: le.eventName,
+        customerName: le.customerName,
+        accessCode: le.accessCode,
+        eventType: le.eventType as any,
+        eventDate: le.eventDate,
+        location: le.location,
+        coverImage: le.coverImage,
+      })) as unknown as PhotoVaultEvent[];
+
+      let remoteEvents: PhotoVaultEvent[] = [];
+      try {
+        remoteEvents = await fetchEvents();
+      } catch {
+        remoteEvents = [];
+      }
+
+      const eventMap = new Map<string, PhotoVaultEvent>();
+      [...localEvents, ...remoteEvents].forEach(ev => {
+        if (ev && ev.accessCode) {
+          eventMap.set(ev.accessCode.toUpperCase(), ev);
+        }
+      });
+
+      const all = Array.from(eventMap.values());
+      const lower = q.toLowerCase().trim();
       const filtered = all.filter(ev =>
         ev.eventName?.toLowerCase().includes(lower) ||
         ev.accessCode?.toLowerCase().includes(lower) ||
-        ev.customerName?.toLowerCase().includes(lower)
+        ev.customerName?.toLowerCase().includes(lower) ||
+        ev.location?.toLowerCase().includes(lower) ||
+        ev.eventType?.toLowerCase().includes(lower)
       );
       setHomeSearchResults(filtered);
     } catch {
@@ -170,12 +228,8 @@ export const CustomerVerificationView: React.FC<CustomerVerificationProps> = ({
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      if (homeSearchQuery.trim()) {
-        performHomeSearch(homeSearchQuery);
-      } else {
-        setHomeSearchResults([]);
-      }
-    }, 250);
+      performHomeSearch(homeSearchQuery);
+    }, 150);
     return () => clearTimeout(timer);
   }, [homeSearchQuery, performHomeSearch]);
 
@@ -707,7 +761,7 @@ export const CustomerVerificationView: React.FC<CustomerVerificationProps> = ({
                 </div>
 
                 {/* Search Dropdown Results */}
-                {homeSearchFocused && homeSearchQuery.trim() && (
+                {homeSearchFocused && (
                   <div style={{
                     position: 'absolute',
                     top: 'calc(100% + 6px)',
@@ -715,8 +769,8 @@ export const CustomerVerificationView: React.FC<CustomerVerificationProps> = ({
                     right: 0,
                     background: '#0d111a',
                     borderRadius: '14px',
-                    border: '1px solid rgba(245,190,79,0.3)',
-                    boxShadow: '0 16px 40px rgba(0,0,0,0.85)',
+                    border: '1px solid rgba(245,190,79,0.35)',
+                    boxShadow: '0 16px 40px rgba(0,0,0,0.9)',
                     zIndex: 50,
                     overflow: 'hidden',
                     animation: 'fadeIn 0.15s ease',
@@ -736,14 +790,18 @@ export const CustomerVerificationView: React.FC<CustomerVerificationProps> = ({
                         <span>No events found for &ldquo;{homeSearchQuery}&rdquo;</span>
                       </div>
                     ) : (
-                      homeSearchResults.slice(0, 5).map(ev => (
+                      homeSearchResults.slice(0, 6).map(ev => (
                         <div
                           key={ev.id}
                           onClick={() => {
-                            setGalleryCode(ev.accessCode || '');
+                            const code = ev.accessCode || '';
+                            setGalleryCode(code);
+                            loadCurrentEventData(code);
+                            setInGallery(true);
                             setHomeSearchQuery('');
                             setHomeSearchResults([]);
                             setHomeSearchFocused(false);
+                            triggerNotify(`Unlocked: ${ev.eventName || code}`);
                           }}
                           style={{
                             display: 'flex',
@@ -754,7 +812,7 @@ export const CustomerVerificationView: React.FC<CustomerVerificationProps> = ({
                             borderBottom: '1px solid rgba(255,255,255,0.06)',
                             transition: 'background 0.15s',
                           }}
-                          onMouseOver={e => (e.currentTarget.style.background = 'rgba(245,190,79,0.1)')}
+                          onMouseOver={e => (e.currentTarget.style.background = 'rgba(245,190,79,0.12)')}
                           onMouseOut={e => (e.currentTarget.style.background = 'transparent')}
                         >
                           <div style={{
@@ -766,7 +824,7 @@ export const CustomerVerificationView: React.FC<CustomerVerificationProps> = ({
                             <Calendar size={17} strokeWidth={2.2} />
                           </div>
                           <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontWeight: 600, fontSize: '0.88rem', color: '#ffffff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            <div style={{ fontWeight: 700, fontSize: '0.88rem', color: '#ffffff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                               {ev.eventName || 'Gallery'}
                             </div>
                             <div style={{ fontSize: '0.73rem', color: 'var(--accent-gold)', fontWeight: 600, marginTop: '1px', fontFamily: 'var(--font-mono)' }}>

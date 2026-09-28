@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   ArrowLeft, Download, Share2, Heart, Play, Film, Image as ImageIcon,
   X, ChevronLeft, ChevronRight, Sparkles, Calendar, MapPin,
-  Maximize2, ZoomIn, ZoomOut, AlertCircle, QrCode, RefreshCw
+  Maximize2, ZoomIn, ZoomOut, AlertCircle, QrCode, RefreshCw, Search
 } from 'lucide-react';
 import {
   getLocalEventByToken, getLocalEventByCode, getEventMedia,
@@ -25,7 +25,8 @@ export const CustomerGallery: React.FC<Props> = ({ token, onBack, onOpenScanner 
   const [zoomLevel, setZoomLevel] = useState<number>(1);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [searchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showSearch, setShowSearch] = useState(false);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -443,6 +444,27 @@ export const CustomerGallery: React.FC<Props> = ({ token, onBack, onOpenScanner 
 
             <div style={{ display: 'flex', gap: '8px' }}>
               <button
+                id="gallery-search-toggle"
+                onClick={() => setShowSearch(s => !s)}
+                title="Search photos"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  background: showSearch ? 'rgba(245,190,79,0.15)' : 'rgba(255,255,255,0.06)',
+                  border: showSearch ? '1px solid rgba(245,190,79,0.45)' : '1px solid rgba(255,255,255,0.12)',
+                  borderRadius: '10px',
+                  padding: '8px 14px',
+                  color: showSearch ? '#f5be4f' : '#e2e8f0',
+                  fontSize: '0.82rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                }}
+              >
+                <Search size={14} /> Search
+              </button>
+              <button
                 onClick={handleShareGallery}
                 style={{
                   display: 'inline-flex',
@@ -538,6 +560,59 @@ export const CustomerGallery: React.FC<Props> = ({ token, onBack, onOpenScanner 
             </div>
           )}
         </div>
+
+        {/* Search Bar (toggleable) */}
+        {showSearch && (
+          <div style={{
+            padding: '12px 0',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            animation: 'fadeIn 0.2s ease',
+          }}>
+            <div style={{ position: 'relative', flex: 1 }}>
+              <Search size={15} color="#f5be4f" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
+              <input
+                id="gallery-search-input"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                placeholder="Search by title, album, date..."
+                autoFocus
+                style={{
+                  width: '100%',
+                  padding: '10px 36px 10px 36px',
+                  borderRadius: '10px',
+                  border: '1px solid rgba(245,190,79,0.4)',
+                  background: 'rgba(7,9,14,0.9)',
+                  fontSize: '0.88rem',
+                  color: '#f8fafc',
+                  outline: 'none',
+                  fontFamily: 'Inter, sans-serif',
+                  boxSizing: 'border-box',
+                }}
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', display: 'flex', padding: '2px' }}
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+            <button
+              onClick={() => { setShowSearch(false); setSearchQuery(''); }}
+              style={{ background: 'none', border: 'none', color: '#94a3b8', fontSize: '0.82rem', fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}
+            >
+              Cancel
+            </button>
+          </div>
+        )}
+        {searchQuery && (
+          <div style={{ fontSize: '0.8rem', color: '#94a3b8', paddingBottom: '8px' }}>
+            Showing <strong style={{ color: '#f5be4f' }}>{filteredMedia.length}</strong> result{filteredMedia.length !== 1 ? 's' : ''} for <em>&ldquo;{searchQuery}&rdquo;</em>
+          </div>
+        )}
       </section>
 
       {/* Media Grid Section */}
