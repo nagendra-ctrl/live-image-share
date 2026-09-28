@@ -15,7 +15,6 @@ import {
   Calendar,
   Search,
   Edit3,
-  Check,
   CheckSquare,
   Square
 } from 'lucide-react';

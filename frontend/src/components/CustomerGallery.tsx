@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   ArrowLeft, Download, Share2, Heart, Play, Film, Image as ImageIcon,
   X, ChevronLeft, ChevronRight, Sparkles, Calendar, MapPin,
-  Maximize2, ZoomIn, ZoomOut, AlertCircle, QrCode, RefreshCw, Search
+  Maximize2, ZoomIn, ZoomOut, AlertCircle, QrCode, RefreshCw
 } from 'lucide-react';
 import {
   getLocalEventByToken, getLocalEventByCode, getEventMedia,
@@ -25,8 +25,7 @@ export const CustomerGallery: React.FC<Props> = ({ token, onBack, onOpenScanner 
   const [zoomLevel, setZoomLevel] = useState<number>(1);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [showSearch, setShowSearch] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery] = useState('');
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
