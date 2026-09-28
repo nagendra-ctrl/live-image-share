@@ -167,34 +167,41 @@ export const CustomerVerificationView: React.FC<CustomerVerificationProps> = ({
 
   // Home search: fetch and filter events on query change
   const performHomeSearch = useCallback(async (q: string) => {
-    if (!q.trim()) {
-      // Show default available events on empty focus
-      const localEvents = getLocalEvents().map(le => ({
-        id: le.token,
-        eventName: le.eventName,
-        customerName: le.customerName,
-        accessCode: le.accessCode,
-        eventType: le.eventType as any,
-        eventDate: le.eventDate,
-        location: le.location,
-        coverImage: le.coverImage,
-      })) as unknown as PhotoVaultEvent[];
-      setHomeSearchResults(localEvents);
+    const trimmed = q.trim();
+
+    // Build local events array from this browser's localStorage
+    const localMapped = getLocalEvents().map(le => ({
+      id: le.token,
+      eventName: le.eventName,
+      customerName: le.customerName,
+      accessCode: le.accessCode,
+      eventType: le.eventType as any,
+      eventDate: le.eventDate,
+      location: le.location,
+      coverImage: le.coverImage,
+      description: (le as any).description,
+    })) as unknown as PhotoVaultEvent[];
+
+    if (!trimmed) {
+      // Show all local events when focused but no query
+      setHomeSearchResults(localMapped);
       return;
     }
+
     setHomeSearchLoading(true);
     try {
-      const localEvents = getLocalEvents().map(le => ({
-        id: le.token,
-        eventName: le.eventName,
-        customerName: le.customerName,
-        accessCode: le.accessCode,
-        eventType: le.eventType as any,
-        eventDate: le.eventDate,
-        location: le.location,
-        coverImage: le.coverImage,
-      })) as unknown as PhotoVaultEvent[];
+      // 1. Filter local events first (immediate)
+      const lower = trimmed.toLowerCase();
+      const localFiltered = localMapped.filter(ev =>
+        ev.eventName?.toLowerCase().includes(lower) ||
+        ev.accessCode?.toLowerCase().includes(lower) ||
+        ev.customerName?.toLowerCase().includes(lower) ||
+        (ev.location as string | undefined)?.toLowerCase().includes(lower) ||
+        ev.eventType?.toLowerCase().includes(lower) ||
+        ev.eventDate?.toLowerCase().includes(lower)
+      );
 
+      // 2. Try fetching all remote events and filter
       let remoteEvents: PhotoVaultEvent[] = [];
       try {
         remoteEvents = await fetchEvents();
@@ -202,29 +209,44 @@ export const CustomerVerificationView: React.FC<CustomerVerificationProps> = ({
         remoteEvents = [];
       }
 
+      // 3. Also try a direct lookup by access code (e.g. "WED-2026-8824" or partial)
+      let directMatch: PhotoVaultEvent | null = null;
+      try {
+        directMatch = await fetchEventByCode(trimmed);
+      } catch {
+        directMatch = null;
+      }
+
+      // Merge: local + remote, deduplicate by accessCode
       const eventMap = new Map<string, PhotoVaultEvent>();
-      [...localEvents, ...remoteEvents].forEach(ev => {
-        if (ev && ev.accessCode) {
-          eventMap.set(ev.accessCode.toUpperCase(), ev);
+      [...localFiltered].forEach(ev => {
+        if (ev?.accessCode) eventMap.set(ev.accessCode.toUpperCase(), ev);
+      });
+      remoteEvents.forEach(ev => {
+        if (ev?.accessCode) {
+          const k = ev.accessCode.toUpperCase();
+          const remoteMatch =
+            ev.eventName?.toLowerCase().includes(lower) ||
+            ev.accessCode?.toLowerCase().includes(lower) ||
+            ev.customerName?.toLowerCase().includes(lower) ||
+            (ev.location as string | undefined)?.toLowerCase().includes(lower) ||
+            ev.eventType?.toLowerCase().includes(lower) ||
+            ev.eventDate?.toLowerCase().includes(lower);
+          if (remoteMatch) eventMap.set(k, ev);
         }
       });
+      if (directMatch?.accessCode) {
+        eventMap.set(directMatch.accessCode.toUpperCase(), directMatch);
+      }
 
-      const all = Array.from(eventMap.values());
-      const lower = q.toLowerCase().trim();
-      const filtered = all.filter(ev =>
-        ev.eventName?.toLowerCase().includes(lower) ||
-        ev.accessCode?.toLowerCase().includes(lower) ||
-        ev.customerName?.toLowerCase().includes(lower) ||
-        ev.location?.toLowerCase().includes(lower) ||
-        ev.eventType?.toLowerCase().includes(lower)
-      );
-      setHomeSearchResults(filtered);
+      setHomeSearchResults(Array.from(eventMap.values()));
     } catch {
       setHomeSearchResults([]);
     } finally {
       setHomeSearchLoading(false);
     }
   }, []);
+
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -775,7 +797,11 @@ export const CustomerVerificationView: React.FC<CustomerVerificationProps> = ({
                     overflow: 'hidden',
                     animation: 'fadeIn 0.15s ease',
                   }}>
-                    {homeSearchResults.length === 0 && !homeSearchLoading ? (
+                    {homeSearchLoading ? (
+                      <div style={{ padding: '16px', textAlign: 'center', color: '#64748b', fontSize: '0.82rem' }}>
+                        Searching…
+                      </div>
+                    ) : homeSearchResults.length === 0 ? (
                       <div style={{
                         padding: '16px',
                         textAlign: 'center',
@@ -787,9 +813,14 @@ export const CustomerVerificationView: React.FC<CustomerVerificationProps> = ({
                         gap: '6px',
                       }}>
                         <Search size={18} color="#475569" />
-                        <span>No events found for &ldquo;{homeSearchQuery}&rdquo;</span>
+                        <span>
+                          {homeSearchQuery.trim()
+                            ? `No events found for "${homeSearchQuery}"`
+                            : 'Start typing to search events…'}
+                        </span>
                       </div>
                     ) : (
+
                       homeSearchResults.slice(0, 6).map(ev => (
                         <div
                           key={ev.id}
